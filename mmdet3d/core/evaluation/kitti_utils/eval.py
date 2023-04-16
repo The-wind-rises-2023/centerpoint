@@ -50,6 +50,7 @@ def clean_data(gt_anno, dt_anno, current_class, difficulty):
         elif (current_cls_name == 'Pedestrian'.lower()
               and 'Person_sitting'.lower() == gt_name):
             valid_class = 0
+        # 表示该种混淆可以接受
         elif (current_cls_name == 'Car'.lower() and 'Van'.lower() == gt_name):
             valid_class = 0
         else:
@@ -127,7 +128,7 @@ def bev_box_overlap(boxes, qboxes, criterion=-1):
 @numba.jit(nopython=True, parallel=True)
 def d3_box_overlap_kernel(boxes, qboxes, rinc, criterion=-1):
     # ONLY support overlap in CAMERA, not lidar.
-    # TODO: change to use prange for parallel mode, should check the difference
+    # : change to use prange for parallel mode, should check the difference
     N, K = boxes.shape[0], qboxes.shape[0]
     for i in numba.prange(N):
         for j in numba.prange(K):
@@ -162,6 +163,105 @@ def d3_box_overlap(boxes, qboxes, criterion=-1):
                                qboxes[:, [0, 2, 3, 5, 6]], 2)
     d3_box_overlap_kernel(boxes, qboxes, rinc, criterion)
     return rinc
+
+# @numba.jit(nopython=True)
+def compute_statistics_jit_zc(overlaps,
+                           gt_datas,
+                           gt_difficultys,
+                           dt_datas,
+                           ignored_gt,
+                           ignored_det,
+                           dc_bboxes,
+                           metric,
+                           min_overlaps,
+                           thresh_holds,
+                           compute_fp=False,
+                           compute_aos=False):
+
+    det_size = dt_datas.shape[0]
+    gt_size = gt_datas.shape[0]
+    dt_scores = dt_datas[:, -1]
+
+    tps = []
+    fns = []
+    fps = []
+
+    for thresh in thresh_holds:
+        print(thresh)
+        assigned_detection = [False] * det_size
+        ignored_threshold = [False] * det_size
+        if compute_fp:
+            for i in range(det_size):
+                if (dt_scores[i] < thresh):
+                    ignored_threshold[i] = True
+        NO_DETECTION = -10000000
+        tp, fp, fn, similarity = 0, 0, 0, 0
+
+        thresh_idx = 0
+
+        for i in range(gt_size):
+            # near and far 
+            if gt_difficultys[i] == 0:
+                min_overlap = min_overlaps[0]
+            elif gt_difficultys[i] == 1:
+                min_overlap = min_overlaps[1]
+
+            if ignored_gt[i] == -1:
+                continue
+                assert False, 'should not be here' # why assert?
+
+            det_idx = -1
+            valid_detection = NO_DETECTION
+            max_overlap = 0
+            assigned_ignored_det = False
+
+            for j in range(det_size):
+                if (ignored_det[j] == -1):
+                    continue
+                if (assigned_detection[j]):
+                    continue
+                if (ignored_threshold[j]):
+                    continue
+                overlap = overlaps[j, i]
+                dt_score = dt_scores[j]
+                if (not compute_fp and (overlap > min_overlap)
+                        and dt_score > valid_detection):
+                    det_idx = j
+                    valid_detection = dt_score
+                elif (compute_fp and (overlap > min_overlap)
+                      and (overlap > max_overlap or assigned_ignored_det)
+                      and ignored_det[j] == 0):                 
+                    max_overlap = overlap
+                    det_idx = j
+                    valid_detection = 1
+                    assigned_ignored_det = False
+                elif (compute_fp and (overlap > min_overlap)
+                      and (valid_detection == NO_DETECTION)
+                      and ignored_det[j] == 1): 
+                    # ignored_det[j] == 1 是kitti中 2d box 高度低于一定值的，不会出现
+                    det_idx = j
+                    valid_detection = 1
+                    assigned_ignored_det = True
+
+            if (valid_detection == NO_DETECTION) and ignored_gt[i] == 0:
+                fn += 1
+            elif ((valid_detection != NO_DETECTION)
+                  and (ignored_gt[i] == 1 or ignored_det[det_idx] == 1)): # 1 是可忽略的，不计入
+                assigned_detection[det_idx] = True
+            elif valid_detection != NO_DETECTION:
+                tp += 1
+                thresh_idx += 1
+                assigned_detection[det_idx] = True
+        if compute_fp:
+            for i in range(det_size):
+                if (not (assigned_detection[i] or ignored_det[i] == -1
+                         or ignored_det[i] == 1 or ignored_threshold[i])):
+                    fp += 1
+        tps.append(tp)
+        fps.append(fp)
+        fns.append(fn)
+    return np.array(tps), np.array(fps), np.array(fns)
+    #return tp, fp, fn, similarity, thresholds[:thresh_idx]
 
 
 @numba.jit(nopython=True)
@@ -421,6 +521,40 @@ def calculate_iou_partly(gt_annos, dt_annos, metric, num_parts=50):
 
     return overlaps, parted_overlaps, total_gt_num, total_dt_num
 
+def _prepare_data_zc(gt_annos, dt_annos, current_class, difficulty):
+    gt_datas_list = []
+    gt_difficulty_list = []
+    dt_datas_list = []
+    total_dc_num = []
+    ignored_gts, ignored_dets, dontcares = [], [], []
+    total_num_valid_gt = 0
+    for i in range(len(gt_annos)):
+        # dt 滤掉非相同类别的
+        rets = clean_data(gt_annos[i], dt_annos[i], current_class, difficulty)
+        num_valid_gt, ignored_gt, ignored_det, dc_bboxes = rets
+        ignored_gts.append(np.array(ignored_gt, dtype=np.int64))
+        ignored_dets.append(np.array(ignored_det, dtype=np.int64))
+        if len(dc_bboxes) == 0:
+            dc_bboxes = np.zeros((0, 4)).astype(np.float64)
+        else:
+            dc_bboxes = np.stack(dc_bboxes, 0).astype(np.float64)
+        total_dc_num.append(dc_bboxes.shape[0])
+        dontcares.append(dc_bboxes)
+        total_num_valid_gt += num_valid_gt
+        gt_datas = np.concatenate(
+            [gt_annos[i]['bbox'], gt_annos[i]['alpha'][..., np.newaxis]], 1)
+        dt_datas = np.concatenate([
+            dt_annos[i]['bbox'], dt_annos[i]['alpha'][..., np.newaxis],
+            dt_annos[i]['score'][..., np.newaxis]
+        ], 1)
+        gt_datas_list.append(gt_datas)
+        dt_datas_list.append(dt_datas)
+        gt_difficulty_list.append(gt_annos[i]['difficulty'])
+    total_dc_num = np.stack(total_dc_num, axis=0)
+    return (gt_datas_list, dt_datas_list, ignored_gts, ignored_dets, dontcares,
+            total_dc_num, total_num_valid_gt, gt_difficulty_list)
+
+
 
 def _prepare_data(gt_annos, dt_annos, current_class, difficulty):
     gt_datas_list = []
@@ -429,6 +563,7 @@ def _prepare_data(gt_annos, dt_annos, current_class, difficulty):
     ignored_gts, ignored_dets, dontcares = [], [], []
     total_num_valid_gt = 0
     for i in range(len(gt_annos)):
+        # dt 滤掉非相同类别的
         rets = clean_data(gt_annos[i], dt_annos[i], current_class, difficulty)
         num_valid_gt, ignored_gt, ignored_det, dc_bboxes = rets
         ignored_gts.append(np.array(ignored_gt, dtype=np.int64))
@@ -452,6 +587,145 @@ def _prepare_data(gt_annos, dt_annos, current_class, difficulty):
     return (gt_datas_list, dt_datas_list, ignored_gts, ignored_dets, dontcares,
             total_dc_num, total_num_valid_gt)
 
+def get_iou_thre_by_gt_range(gt_annos, current_class):
+    """
+    Args:
+        gt_annos (dict): Must from get_label_annos() in kitti_common.py.
+        current_class (int): 0: car, 1: pedestrian, 2: cyclist.
+
+    Returns:
+        list: each thre of iou
+    """
+    total_gt_num = np.stack([len(a['name']) for a in gt_annos], 0)
+    num_examples = len(gt_annos)
+    split_parts = get_split_parts(num_examples, num_parts)
+    iou_thresh = []
+    example_idx = 0
+
+    distance_list = np.array([80, 30, 30, 80, 80])
+    iou_list = np.array([[0.7, 0.5, 0.5, 0.7, 0.7],     # 0~30 , 0~80
+                         [0.5, 0.25, 0.25, 0.5, 0.5]])
+
+    for num_part in split_parts:
+        gt_annos_part = gt_annos[example_idx:example_idx + num_part]
+        loc = np.concatenate(
+                [a['location'][:, 2] for a in gt_annos_part], 0)         # TODO: check if is x
+        gt_datas = np.concatenate([loc, class_num], axis=1)
+        ious = np.ones(shape)(num_part) * iou_list[0][current_class]
+        ious[loc > distance_list[current_class]] = iou_list[1][current_class]
+        iou_thresh.append(ious)
+
+
+def eval_class_zc(gt_annos,
+               dt_annos,
+               current_classes,
+               difficultys,
+               metric,
+               min_overlaps,
+               compute_aos=False,
+               num_parts=200):
+    """zc eval. 
+
+    Args:
+        gt_annos (dict): Must from get_label_annos() in kitti_common.py.
+        dt_annos (dict): Must from get_label_annos() in kitti_common.py.
+        current_classes (list[int]): 0: car, 1: pedestrian, 2: cyclist.
+        difficultys (list[int]): Eval difficulty, 0: easy, 1: normal, 2: hard
+        metric (int): Eval type. 0: bbox, 1: bev, 2: 3d
+        min_overlaps (float): Min overlap. format:
+            [num_overlap, metric, class].
+        num_parts (int): A parameter for fast calculate algorithm
+
+    Returns:
+        dict[str, np.ndarray]: recall, precision and aos
+    """
+    assert metric in [1], 'only support bev now'
+
+    assert min_overlaps.shape[1] == 1, 'only support bev now'
+
+    # fast calculate algorithm for large dataset
+    assert len(gt_annos) == len(dt_annos)
+    num_examples = len(gt_annos)
+    if num_examples < num_parts:
+        num_parts = num_examples
+    split_parts = get_split_parts(num_examples, num_parts)
+
+    # import ipdb; ipdb.set_trace()
+
+    # gt and dt changed
+    # 计算box 之间overlaps
+    rets = calculate_iou_partly(dt_annos, gt_annos, metric, num_parts)
+    overlaps, parted_overlaps, total_dt_num, total_gt_num = rets
+
+    N_SAMPLE_PTS = 41 # 
+    thresh_holds = np.linspace(0, 1, N_SAMPLE_PTS) # 0~1, 41个点
+
+    num_minoverlap = len(min_overlaps) # 2, near and far iou thresh
+    num_class = len(current_classes) # 5
+
+    num_difficulty = len(difficultys) # near and far gts
+
+    # 按照类别、难度、iou阈值、点数来获得recall和precision
+    precision = np.zeros(
+        [num_class, N_SAMPLE_PTS])
+    recall = np.zeros(
+        [num_class, N_SAMPLE_PTS])
+
+    for m, current_class in enumerate(current_classes):
+        # 不需要进行difficultys的循环，difficultys 只用来索引iou阈值
+        #for idx_l, difficulty in enumerate(difficultys):
+        rets = _prepare_data_zc(gt_annos, dt_annos, current_class, 0) # 此处difficulty 填0\1\2没有任何影响, 只会滤掉不同类别的
+        (gt_datas_list, dt_datas_list, ignored_gts, ignored_dets,
+         dontcares, total_dc_num, total_num_valid_gt, gt_difficulty_list) = rets
+
+        #for k, min_overlap in enumerate(min_overlaps[:, metric, m]):
+        # 不需要进行overlap 循环了，因为iou 阈值根据distance 会变化
+        #for k, min_overlap in enumerate(min_overlaps[:, 0, m]):
+        thresholdss = []
+
+        all_tps = []
+        all_fns = []
+        all_fps = []
+
+        for i in range(len(gt_annos)):
+            # TODO 计算tp、fn 等匹配条件，需要修改实现
+            rets = compute_statistics_jit_zc(
+                overlaps[i],
+                gt_datas_list[i],
+                gt_difficulty_list[i],
+                dt_datas_list[i],
+                ignored_gts[i],
+                ignored_dets[i],
+                dontcares[i],
+                metric,
+                min_overlaps[:,:,current_class].reshape(-1), #
+                thresh_holds=thresh_holds,
+                compute_fp=True)
+            tps, fps, fns = rets
+            all_tps.append(tps)
+            all_fps.append(fps)
+            all_fns.append(fns)
+        all_tps = np.stack(all_tps).sum(axis=0)
+        all_fns = np.stack(all_fns).sum(axis=0)
+        all_fps = np.stack(all_fps).sum(axis=0)
+
+        # import ipdb;ipdb.set_trace()
+        # 计算recall、precision
+        recall[m] = all_tps / (all_tps + all_fps)
+        precision[m] = all_tps / (all_tps + all_fns)
+
+    ret_dict = {
+        'recall': recall,
+        'precision': precision,
+        'thresholds': thresh_holds
+    }
+
+    # clean temp variables
+    del overlaps
+    del parted_overlaps
+
+    gc.collect()
+    return ret_dict
 
 def eval_class(gt_annos,
                dt_annos,
@@ -597,6 +871,36 @@ def print_str(value, *arg, sstream=None):
     print(value, *arg, file=sstream)
     return sstream.getvalue()
 
+def do_eval_zc(gt_annos,
+            dt_annos,
+            current_classes,
+            min_overlaps,
+            eval_types=['bev']):
+
+    # min_overlaps: [num_minoverlap, metric, num_class]
+
+    difficultys = [0, 1] # 0: near, 1: far
+
+    if 'bbox' in eval_types:
+        raise NotImplementedError("does not support 2d bbox eval now.")
+    if '3d' in eval_types:
+        raise NotImplementedError("does not support 3d eval now.")
+
+    prs = None
+    result = {}
+    if 'bev' in eval_types:
+        ret = eval_class_zc(gt_annos, dt_annos, current_classes,
+                            difficultys,
+                            1,
+                            min_overlaps)
+
+        # TODO 根据返回的ret处理后得到目标pr
+        result['bev_mAP40'] = get_mAP40(ret['precision'])
+        result['precision'] = ret['precision'][:,20]
+        result['recall'] = ret['recall'][:,20]
+    
+    return result
+
 
 def do_eval(gt_annos,
             dt_annos,
@@ -604,6 +908,7 @@ def do_eval(gt_annos,
             min_overlaps,
             eval_types=['bbox', 'bev', '3d']):
     # min_overlaps: [num_minoverlap, metric, num_class]
+    # import ipdb;ipdb.set_trace()
     difficultys = [0, 1, 2]
     mAP11_bbox = None
     mAP11_aos = None
@@ -663,48 +968,59 @@ def do_coco_style_eval(gt_annos, dt_annos, current_classes, overlap_ranges,
         mAP_aos = mAP_aos.mean(-1)
     return mAP_bbox, mAP_bev, mAP_3d, mAP_aos
 
+def add_distance(data, name_to_class, distance_v):
+    """
+    添加difficulty, 0: near, 1: far, 注意和kitti 定义不同,用来索引对应的iou 阈值
+    """
+    for gt in data:
+        distance = np.sqrt(gt['location'][:, 0]**2 + gt['location'][:, 2]**2) # camera coordinate
+        gt['distance'] = distance
+        difficulty = np.zeros_like(distance, dtype=np.int64)
+        for idx, name in enumerate(gt['name']):
+            label = name_to_class[name]
+            if distance[idx] > distance_v[label]:
+                difficulty[idx] = 1
+        gt['difficulty'] = difficulty
+    
+
 def kitti_eval_zc(gt_annos,
                dt_annos,
                current_classes,
                eval_types=['bev']):
-               #eval_types=['bbox', 'bev', '3d']): # bbox is 2d eval
-    """KITTI evaluation.
+    """KITTI style zc evaluation.
 
     Args:
         gt_annos (list[dict]): Contain gt information of each sample.
         dt_annos (list[dict]): Contain detected information of each sample.
         current_classes (list[str]): Classes to evaluation.
         eval_types (list[str], optional): Types to eval.
-            Defaults to ['bbox', 'bev', '3d'].
+            Defaults to ['bev'].
 
     Returns:
         tuple: String and dict of evaluation results.
     """
+    # import ipdb;ipdb.set_trace()
     assert len(eval_types) > 0, 'must contain at least one evaluation type'
-    if 'aos' in eval_types:
-        assert 'bbox' in eval_types, 'must evaluate bbox when evaluating aos'
-    # 3 : metrics, 5 : classes
-    overlap_0_7 = np.array([[0.7, 0.5, 0.5, 0.7,
-                             0.5], [0.7, 0.5, 0.5, 0.7, 0.5],
-                            [0.7, 0.5, 0.5, 0.7, 0.5]])
-    overlap_0_5 = np.array([[0.7, 0.5, 0.5, 0.7, 0.5],
-                            [0.5, 0.25, 0.25, 0.5, 0.25],
-                            [0.5, 0.25, 0.25, 0.5, 0.25]])
 
-    min_overlaps = np.stack([overlap_0_7, overlap_0_5], axis=0)  # [2, 3, 5]
+    assert len(current_classes) == 5, ''
 
-    # for different classes, the evaluation metrics are different
+    # iou thresh for 5 classes in near distance
+    overlap_near = np.array([[0.7, 0.5, 0.5, 0.7,
+                              0.7]])
+    overlap_far = np.array([[0.5, 0.25, 0.25, 0.5,
+                             0.5]])
+
+    # import ipdb;ipdb.set_trace()
+
+    # distance thresh for 5 classes in near distance
+    distance_v = np.array([80, 30, 30, 80,
+                          80])
+
+    min_overlaps = np.stack([overlap_near, overlap_far], axis=0)  # [2, 1, 5]. near and far, metric(only bev), class(5)
+
     class_to_name = {
         i: current_classes[i] for i in range(len(current_classes))
     }
-    #class_to_name = {
-    #    0: 'Car',
-    #    1: 'Pedestrian',
-    #    2: 'Cyclist',
-    #    3: 'Truck',
-    #    4: 'Train'
-    #}
-    
     name_to_class = {v: n for n, v in class_to_name.items()}
     if not isinstance(current_classes, (list, tuple)):
         current_classes = [current_classes]
@@ -716,180 +1032,21 @@ def kitti_eval_zc(gt_annos,
             current_classes_int.append(curcls)
     current_classes = current_classes_int
     min_overlaps = min_overlaps[:, :, current_classes]
+
+    #TODO 按照不同距离将gt 的difficuty 设置为easy 或者 hard
+    # function1: 根据距离设置难度, 用来计算iou 阈值时进行索引
+    add_distance(gt_annos, name_to_class, distance_v)
+
     result = ''
-    # check whether alpha is valid
-    compute_aos = False
-    pred_alpha = False
-    valid_alpha_gt = False
-    #for anno in dt_annos:
-    #    mask = (anno['alpha'] != -10)
-    #    if anno['alpha'][mask].shape[0] != 0:
-    #        pred_alpha = True
-    #        break
-    #for anno in gt_annos:
-    #    if anno['alpha'][0] != -10:
-    #        valid_alpha_gt = True
-    #        break
-    compute_aos = (pred_alpha and valid_alpha_gt)
-    if compute_aos:
-        eval_types.append('aos')
+    # 计算每个类别的准召率
+    result_dict = do_eval_zc(gt_annos, dt_annos,
+                     current_classes, min_overlaps,
+                     eval_types)
 
-    mAP11_bbox, mAP11_bev, mAP11_3d, mAP11_aos, mAP40_bbox, mAP40_bev, \
-        mAP40_3d, mAP40_aos = do_eval(gt_annos, dt_annos,
-                                      current_classes, min_overlaps,
-                                      eval_types)
+    for k, v in result_dict.items():
+        result += f'{k}: {v} \n'
 
-    ret_dict = {}
-    difficulty = ['easy', 'moderate', 'hard']
-
-    # calculate AP11
-    result += '\n----------- AP11 Results ------------\n\n'
-    for j, curcls in enumerate(current_classes):
-        # mAP threshold array: [num_minoverlap, metric, class]
-        # mAP result: [num_class, num_diff, num_minoverlap]
-        curcls_name = class_to_name[curcls]
-        for i in range(min_overlaps.shape[0]):
-            # prepare results for print
-            result += ('{} AP11@{:.2f}, {:.2f}, {:.2f}:\n'.format(
-                curcls_name, *min_overlaps[i, :, j]))
-            if mAP11_bbox is not None:
-                result += 'bbox AP11:{:.4f}, {:.4f}, {:.4f}\n'.format(
-                    *mAP11_bbox[j, :, i])
-            if mAP11_bev is not None:
-                result += 'bev  AP11:{:.4f}, {:.4f}, {:.4f}\n'.format(
-                    *mAP11_bev[j, :, i])
-            if mAP11_3d is not None:
-                result += '3d   AP11:{:.4f}, {:.4f}, {:.4f}\n'.format(
-                    *mAP11_3d[j, :, i])
-            if compute_aos:
-                result += 'aos  AP11:{:.2f}, {:.2f}, {:.2f}\n'.format(
-                    *mAP11_aos[j, :, i])
-
-            # prepare results for logger
-            for idx in range(3):
-                if i == 0:
-                    postfix = f'{difficulty[idx]}_strict'
-                else:
-                    postfix = f'{difficulty[idx]}_loose'
-                prefix = f'KITTI/{curcls_name}'
-                if mAP11_3d is not None:
-                    ret_dict[f'{prefix}_3D_AP11_{postfix}'] =\
-                        mAP11_3d[j, idx, i]
-                if mAP11_bev is not None:
-                    ret_dict[f'{prefix}_BEV_AP11_{postfix}'] =\
-                        mAP11_bev[j, idx, i]
-                if mAP11_bbox is not None:
-                    ret_dict[f'{prefix}_2D_AP11_{postfix}'] =\
-                        mAP11_bbox[j, idx, i]
-
-    # calculate mAP11 over all classes if there are multiple classes
-    if len(current_classes) > 1:
-        # prepare results for print
-        result += ('\nOverall AP11@{}, {}, {}:\n'.format(*difficulty))
-        if mAP11_bbox is not None:
-            mAP11_bbox = mAP11_bbox.mean(axis=0)
-            result += 'bbox AP11:{:.4f}, {:.4f}, {:.4f}\n'.format(
-                *mAP11_bbox[:, 0])
-        if mAP11_bev is not None:
-            mAP11_bev = mAP11_bev.mean(axis=0)
-            result += 'bev  AP11:{:.4f}, {:.4f}, {:.4f}\n'.format(
-                *mAP11_bev[:, 0])
-        if mAP11_3d is not None:
-            mAP11_3d = mAP11_3d.mean(axis=0)
-            result += '3d   AP11:{:.4f}, {:.4f}, {:.4f}\n'.format(*mAP11_3d[:,
-                                                                            0])
-        if compute_aos:
-            mAP11_aos = mAP11_aos.mean(axis=0)
-            result += 'aos  AP11:{:.2f}, {:.2f}, {:.2f}\n'.format(
-                *mAP11_aos[:, 0])
-
-        # prepare results for logger
-        for idx in range(3):
-            postfix = f'{difficulty[idx]}'
-            if mAP11_3d is not None:
-                ret_dict[f'KITTI/Overall_3D_AP11_{postfix}'] = mAP11_3d[idx, 0]
-            if mAP11_bev is not None:
-                ret_dict[f'KITTI/Overall_BEV_AP11_{postfix}'] =\
-                    mAP11_bev[idx, 0]
-            if mAP11_bbox is not None:
-                ret_dict[f'KITTI/Overall_2D_AP11_{postfix}'] =\
-                    mAP11_bbox[idx, 0]
-
-    # Calculate AP40
-    result += '\n----------- AP40 Results ------------\n\n'
-    for j, curcls in enumerate(current_classes):
-        # mAP threshold array: [num_minoverlap, metric, class]
-        # mAP result: [num_class, num_diff, num_minoverlap]
-        curcls_name = class_to_name[curcls]
-        for i in range(min_overlaps.shape[0]):
-            # prepare results for print
-            result += ('{} AP40@{:.2f}, {:.2f}, {:.2f}:\n'.format(
-                curcls_name, *min_overlaps[i, :, j]))
-            if mAP40_bbox is not None:
-                result += 'bbox AP40:{:.4f}, {:.4f}, {:.4f}\n'.format(
-                    *mAP40_bbox[j, :, i])
-            if mAP40_bev is not None:
-                result += 'bev  AP40:{:.4f}, {:.4f}, {:.4f}\n'.format(
-                    *mAP40_bev[j, :, i])
-            if mAP40_3d is not None:
-                result += '3d   AP40:{:.4f}, {:.4f}, {:.4f}\n'.format(
-                    *mAP40_3d[j, :, i])
-            if compute_aos:
-                result += 'aos  AP40:{:.2f}, {:.2f}, {:.2f}\n'.format(
-                    *mAP40_aos[j, :, i])
-
-            # prepare results for logger
-            for idx in range(3):
-                if i == 0:
-                    postfix = f'{difficulty[idx]}_strict'
-                else:
-                    postfix = f'{difficulty[idx]}_loose'
-                prefix = f'KITTI/{curcls_name}'
-                if mAP40_3d is not None:
-                    ret_dict[f'{prefix}_3D_AP40_{postfix}'] =\
-                        mAP40_3d[j, idx, i]
-                if mAP40_bev is not None:
-                    ret_dict[f'{prefix}_BEV_AP40_{postfix}'] =\
-                        mAP40_bev[j, idx, i]
-                if mAP40_bbox is not None:
-                    ret_dict[f'{prefix}_2D_AP40_{postfix}'] =\
-                        mAP40_bbox[j, idx, i]
-
-    # calculate mAP40 over all classes if there are multiple classes
-    if len(current_classes) > 1:
-        # prepare results for print
-        result += ('\nOverall AP40@{}, {}, {}:\n'.format(*difficulty))
-        if mAP40_bbox is not None:
-            mAP40_bbox = mAP40_bbox.mean(axis=0)
-            result += 'bbox AP40:{:.4f}, {:.4f}, {:.4f}\n'.format(
-                *mAP40_bbox[:, 0])
-        if mAP40_bev is not None:
-            mAP40_bev = mAP40_bev.mean(axis=0)
-            result += 'bev  AP40:{:.4f}, {:.4f}, {:.4f}\n'.format(
-                *mAP40_bev[:, 0])
-        if mAP40_3d is not None:
-            mAP40_3d = mAP40_3d.mean(axis=0)
-            result += '3d   AP40:{:.4f}, {:.4f}, {:.4f}\n'.format(*mAP40_3d[:,
-                                                                            0])
-        if compute_aos:
-            mAP40_aos = mAP40_aos.mean(axis=0)
-            result += 'aos  AP40:{:.2f}, {:.2f}, {:.2f}\n'.format(
-                *mAP40_aos[:, 0])
-
-        # prepare results for logger
-        for idx in range(3):
-            postfix = f'{difficulty[idx]}'
-            if mAP40_3d is not None:
-                ret_dict[f'KITTI/Overall_3D_AP40_{postfix}'] = mAP40_3d[idx, 0]
-            if mAP40_bev is not None:
-                ret_dict[f'KITTI/Overall_BEV_AP40_{postfix}'] =\
-                    mAP40_bev[idx, 0]
-            if mAP40_bbox is not None:
-                ret_dict[f'KITTI/Overall_2D_AP40_{postfix}'] =\
-                    mAP40_bbox[idx, 0]
-
-    return result, ret_dict
-
+    return result,result_dict
 
 def kitti_eval(gt_annos,
                dt_annos,

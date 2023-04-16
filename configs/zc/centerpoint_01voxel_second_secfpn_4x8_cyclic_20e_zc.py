@@ -46,7 +46,7 @@ file_client_args = dict(backend='disk')
 #TODO with this
 db_sampler = dict(
     data_root=data_root,
-    info_path=data_root + 'training_db_infos.pkl',
+    info_path=data_root + 'gt_dbinfos_train.pkl',
     rate=1.0,
     prepare=dict(
         filter_by_difficulty=[-1],
@@ -57,7 +57,7 @@ db_sampler = dict(
         type='LoadPointsFromFile',
         coord_type='LIDAR',
         load_dim=4,
-        use_dim=[0, 1, 2, 3, 4],
+        use_dim=[0, 1, 2, 3],
         file_client_args=file_client_args))
 
 train_pipeline = [

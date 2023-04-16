@@ -267,6 +267,15 @@ def zc_data_prep(
         pkl_file_name = osp.join(out_dir, f'{split}_infos.pkl')
         zc.generate_pickle(split_infos, split_pcds, pkl_file_name, num_workers=workers)
 
+    GTDatabaseCreater(
+        'ZCDataset',
+        out_dir,
+        'gt',
+        f'{out_dir}/training_infos.pkl',
+        relative_path=False,
+        with_mask=False,
+        num_worker=workers).create()
+
 
 parser = argparse.ArgumentParser(description='Data converter arg parser')
 parser.add_argument('dataset', metavar='kitti', help='name of the dataset')

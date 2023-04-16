@@ -45,7 +45,7 @@ file_client_args = dict(backend='disk')
 #TODO with this
 db_sampler = dict(
     data_root=data_root,
-    info_path=data_root + 'training_db_infos.pkl',
+    info_path=data_root + 'gt_dbinfos_train.pkl',
     rate=1.0,
     prepare=dict(
         filter_by_difficulty=[-1],
@@ -56,7 +56,7 @@ db_sampler = dict(
         type='LoadPointsFromFile',
         coord_type='LIDAR',
         load_dim=4,
-        use_dim=[0, 1, 2, 3, 4],
+        use_dim=[0, 1, 2, 3],
         file_client_args=file_client_args))
 
 train_pipeline = [
@@ -74,7 +74,7 @@ train_pipeline = [
     #    pad_empty_sweeps=True,
     #    remove_close=True),
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
-    #dict(type='ObjectSample', db_sampler=db_sampler),
+    dict(type='ObjectSample', db_sampler=db_sampler),
     dict(
         type='GlobalRotScaleTrans',
         rot_range=[-0.1, 0.1],
@@ -174,7 +174,7 @@ data = dict(
             ann_file=data_root + 'testing_infos.pkl',
               ))
 
-evaluation = dict(interval=2, pipeline=eval_pipeline)
+evaluation = dict(interval=1, pipeline=eval_pipeline)
 
 log_config = dict(
     interval=1)
