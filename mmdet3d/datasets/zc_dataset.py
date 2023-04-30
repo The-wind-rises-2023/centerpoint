@@ -113,6 +113,90 @@ class ZCDataset(Custom3DDataset):
             dt['alpha'] = np.array([0 for i in range(len(dt['name']))]) # do not care and do not use aos
         return gts, dets
 
+    def remove_dontcare(self, ann_info):
+        """Remove annotations that do not need to be cared.
+
+        Args:
+            ann_info (dict): Dict of annotation infos. The ``'DontCare'``
+                annotations will be removed according to ann_file['name'].
+
+        Returns:
+            dict: Annotations after filtering.
+        """
+        img_filtered_annotations = {}
+        relevant_annotation_indices = [
+            i for i, x in enumerate(ann_info['name']) if x != 'DontCare'
+        ]
+        for key in ann_info.keys():
+            img_filtered_annotations[key] = (
+                ann_info[key][relevant_annotation_indices])
+        return img_filtered_annotations
+
+    # def save_data(results, dst="./", with_gt=False):
+    #     """
+    # save pointcloud + predict result + gt in txt format in dst dir to compare
+    # torch result and other result(like result in perception onnx)
+    # """
+
+    # if not os.path.exists(dst):
+    #     os.makedirs(dst)
+
+    # for start in range(len(test_set)):
+    #     data = test_iter.next()
+        
+    #     data_index = start
+
+    #     points = data['points']
+        
+    #     #batch_dict = deepcopy(data)
+    #     load_data_to_gpu(data)
+    #     predict = model(data, return_loss=False)
+        
+    #     for index, box_dict in enumerate(predict[0]):
+    #         frame_id = data['frame_id'][index]
+    #         single_pred_dict = generate_single_sample_dict(box_dict)
+    #         single_pred_dict['frame_id'] = frame_id
+
+    #         if dst is not None and os.path.isdir(dst):
+
+    #             json_file = dst + ('/%s.json' % frame_id)
+    #             single_pred_dict['json_path'] = os.path.abspath(json_file)
+    #             # save json with haomo format for qa eval or visualization
+    #             # json_objects = {'objects': []}
+    #             json_objects = []
+                
+    #             boxes_lidar = single_pred_dict['boxes_lidar']
+    #             with open(json_file, 'w') as f:
+    #                 bbox = single_pred_dict['bbox']
+    #                 loc = single_pred_dict['location']
+    #                 dims = single_pred_dict['dimensions']  # lhw -> hwl
+    #                 scores = single_pred_dict['score']
+    #                 # the format of haomo label json
+    #                 for idx in range(len(bbox)):
+    #                     box_lidar = boxes_lidar[idx]
+    #                     box_json = {'psr': {'position': {'x': float(box_lidar[0]), 'y': float(box_lidar[1]),
+    #                                                 'z': float(box_lidar[2])},
+    #                                          'scale': {'x': float(box_lidar[3]), 'y': float(box_lidar[4]),
+    #                                                 'z': float(box_lidar[5])},
+    #                                          'rotation': {'x': 0, 'y': 0, 'z': float(box_lidar[6])}},
+    #                                  'obj_type': single_pred_dict['name'][idx],
+    #                                  'obj_id' : '1',
+    #                                  'score': float(scores[idx])   
+    #                                 }
+    #                     # box_json = {'className': single_pred_dict['name'][idx],
+    #                     #             'position': {'x': float(box_lidar[0]), 'y': float(box_lidar[1]),
+    #                     #                             'z': float(box_lidar[2])},
+    #                     #             'rotation': {'pitch': 0, 'roll': 0, 'yaw': float(box_lidar[6])},
+    #                     #             'dimension': {'width': float(box_lidar[4]), 'height': float(box_lidar[5]),
+    #                     #                             'length': float(box_lidar[3])},
+    #                     #             'score': float(scores[idx])
+    #                     #             }
+    #                     # json_objects['objects'].append(box_json)
+    #                     json_objects.append(box_json)
+    #                 # for visulization
+    #                 # with open(json_file, 'w') as f:
+    #                 json.dump(json_objects, f)
+
     def evaluate(self,
                  results,
                  metric=None,
@@ -155,11 +239,9 @@ class ZCDataset(Custom3DDataset):
 
         from mmdet3d.core.evaluation import kitti_eval_zc
         gt_annos = [info['annos'] for info in self.data_infos]
-
         label2cat = {i: cat_id for i, cat_id in enumerate(self.CLASSES)}
 
         gt_annos, result_files = self.convert_to_kitti_format(gt_annos, result_files, label2cat)
-
         if isinstance(result_files, dict):
             ap_dict = dict()
             for name, result_files_ in result_files.items():
@@ -191,3 +273,58 @@ class ZCDataset(Custom3DDataset):
         if show or out_dir:
             self.show(results, out_dir, show=show, pipeline=pipeline)
         return ap_dict
+
+    def show(self, results, out_dir, show=True, pipeline=None):
+        """Results visualization.
+
+        Args:
+            results (list[dict]): List of bounding boxes results.
+            out_dir (str): Output directory of visualization result.
+            show (bool): Whether to visualize the results online.
+                Default: False.
+            pipeline (list[dict], optional): raw data loading for showing.
+                Default: None.
+        """
+        assert out_dir is not None, 'Expect out_dir, got none.'
+        pipeline = self._get_pipeline(pipeline)
+        for i, result in enumerate(results):
+            if 'pts_bbox' in result.keys():
+                result = result['pts_bbox']
+            data_info = self.data_infos[i]
+            pts_path = data_info['lidar_points']['lidar_path']
+            file_name = osp.split(pts_path)[-1].split('.')[0]
+            points, img_metas, img = self._extract_data(
+                i, pipeline, ['points', 'img_metas', 'img'])
+            points = points.numpy()
+            # for now we convert points into depth mode
+            points = Coord3DMode.convert_point(points, Coord3DMode.LIDAR,
+                                               Coord3DMode.DEPTH)
+            
+            gt_bboxes = self.get_ann_info(i)['gt_bboxes_3d'].tensor.numpy()
+
+            show_gt_bboxes = Box3DMode.convert(gt_bboxes, Box3DMode.LIDAR,
+                                               Box3DMode.DEPTH)
+            pred_bboxes = result['boxes_3d'].tensor.numpy()
+            show_pred_bboxes = Box3DMode.convert(pred_bboxes, Box3DMode.LIDAR,
+                                                 Box3DMode.DEPTH)
+            show_result(points, show_gt_bboxes, show_pred_bboxes, out_dir,
+                        file_name, show)
+
+            # multi-modality visualization
+            if self.modality['use_camera'] and 'lidar2img' in img_metas.keys():
+                img = img.numpy()
+                # need to transpose channel to first dim
+                img = img.transpose(1, 2, 0)
+                show_pred_bboxes = LiDARInstance3DBoxes(
+                    pred_bboxes, origin=(0.5, 0.5, 0))
+                show_gt_bboxes = LiDARInstance3DBoxes(
+                    gt_bboxes, origin=(0.5, 0.5, 0))
+                show_multi_modality_result(
+                    img,
+                    show_gt_bboxes,
+                    show_pred_bboxes,
+                    img_metas['lidar2img'],
+                    out_dir,
+                    file_name,
+                    box_mode='lidar',
+                    show=show)          

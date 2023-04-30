@@ -11,9 +11,7 @@ point_cloud_range = [0, -20, -4, 120, 20, 4]
 class_names = [
     'Car', 'Pedestrian', 'Cyclist', 'Truck', 'Train'
 ]
-#class_names = [
-#    'Car', 'BigCar', 'Static', 'Pedestrian', 'Cyclist'
-#]
+
 
 model = dict(
     pts_voxel_layer=dict(point_cloud_range=point_cloud_range),
@@ -32,12 +30,12 @@ model = dict(
                         post_center_range=[0, -20, -4, 120, 20, 4],
                         )),
     # model training and testing settings
-    train_cfg=dict(pts=dict(point_cloud_range=point_cloud_range)),
-    test_cfg=dict(pts=dict(pc_range=point_cloud_range[:2])))
+    train_cfg=dict(pts=dict(point_cloud_range=point_cloud_range, code_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])),
+    test_cfg=dict(pts=dict(pc_range=point_cloud_range[:2], post_center_limit_range=point_cloud_range)))
 
 
 dataset_type = 'ZCDataset'
-data_root = '/home/jing/Data/data/06/'
+data_root = '/home/jing/Data/data/20221220-det-merge/'
 #data_root = '/home/jing/Data/data/20221220-lidar-camera/'
 #data_root = '/mnt/c/Users/xing/Downloads/test_pcd_json_20221220/'
 
@@ -52,7 +50,7 @@ db_sampler = dict(
         filter_by_difficulty=[-1],
     filter_by_min_points=dict(Car=10, Pedestrian=10, Cyclist=10, Truck=10, Train=10)),
     classes=class_names,
-    sample_groups=dict(Car=15, Pedestrian=15, Cyclist=15, Truck=15, Train=15),
+    sample_groups=dict(Car=5, Pedestrian=5, Cyclist=5, Truck=5, Train=5),
     points_loader=dict(
         type='LoadPointsFromFile',
         coord_type='LIDAR',
@@ -67,15 +65,8 @@ train_pipeline = [
         load_dim=4,
         use_dim=4,
         file_client_args=file_client_args),
-    #dict(
-    #    type='LoadPointsFromMultiSweeps',
-    #    sweeps_num=9,
-    #    use_dim=[0, 1, 2, 3, 4],
-    #    file_client_args=file_client_args,
-    #    pad_empty_sweeps=True,
-    #    remove_close=True),
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
-    #dict(type='ObjectSample', db_sampler=db_sampler),
+    dict(type='ObjectSample', db_sampler=db_sampler),
     dict(
         type='GlobalRotScaleTrans',
         rot_range=[-0.1, 0.1],
@@ -130,12 +121,14 @@ test_pipeline = [
 ]
 # construct a pipeline for data and gt loading in show function
 # please keep its loading function consistent with test_pipeline (e.g. client)
+# eval_pipeline = train_pipeline.copy()
+
 eval_pipeline = [
     dict(
         type='LoadPointsFromFile',
         coord_type='LIDAR',
-        load_dim=5,
-        use_dim=5,
+        load_dim=4,
+        use_dim=4,
         file_client_args=file_client_args),
     #dict(
     #    type='LoadPointsFromMultiSweeps',
@@ -145,10 +138,31 @@ eval_pipeline = [
     #    pad_empty_sweeps=True,
     #    remove_close=True),
     dict(
-        type='DefaultFormatBundle3D',
-        class_names=class_names,
-        with_label=False),
-    dict(type='Collect3D', keys=['points'])
+    type='MultiScaleFlipAug3D',
+    img_scale=(1333, 800),
+    pts_scale_ratio=1,
+    flip=False,
+    transforms=[
+        # dict(
+        #     type='GlobalRotScaleTrans',
+        #     rot_range=[0, 0],
+        #     scale_ratio_range=[1., 1.],
+        #     translation_std=[0, 0, 0]),
+        # dict(type='RandomFlip3D'),
+        dict(
+            type='PointsRangeFilter', point_cloud_range=point_cloud_range),
+        dict(
+            type='DefaultFormatBundle3D',
+            class_names=class_names,
+            with_label=False),
+        dict(type='Collect3D', keys=['points'])
+    ])
+
+    # dict(
+    #     type='DefaultFormatBundle3D',
+    #     class_names=class_names,
+    #     with_label=False),
+    # dict(type='Collect3D', keys=['points'])
 ]
 
 data = dict(
@@ -175,13 +189,14 @@ data = dict(
             ann_file=data_root + 'testing_infos.pkl',
               ))
 
-evaluation = dict(interval=2, pipeline=eval_pipeline)
+evaluation = dict(interval=4, pipeline=eval_pipeline)
 
 log_config = dict(
     interval=1)
 
 runner = dict(max_epochs=80)
 
+#lr = 1e-5
 # fp16 settings
 #fp16 = dict(loss_scale=64.)
 

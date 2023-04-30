@@ -187,7 +187,6 @@ def compute_statistics_jit_zc(overlaps,
     fps = []
 
     for thresh in thresh_holds:
-        print(thresh)
         assigned_detection = [False] * det_size
         ignored_threshold = [False] * det_size
         if compute_fp:
@@ -650,7 +649,6 @@ def eval_class_zc(gt_annos,
         num_parts = num_examples
     split_parts = get_split_parts(num_examples, num_parts)
 
-    # import ipdb; ipdb.set_trace()
 
     # gt and dt changed
     # 计算box 之间overlaps
@@ -709,10 +707,9 @@ def eval_class_zc(gt_annos,
         all_fns = np.stack(all_fns).sum(axis=0)
         all_fps = np.stack(all_fps).sum(axis=0)
 
-        # import ipdb;ipdb.set_trace()
         # 计算recall、precision
-        recall[m] = all_tps / (all_tps + all_fps)
-        precision[m] = all_tps / (all_tps + all_fns)
+        recall[m] = all_tps / (all_tps + all_fns)
+        precision[m] = all_tps / (all_tps + all_fps)
 
     ret_dict = {
         'recall': recall,
@@ -868,7 +865,8 @@ def print_str(value, *arg, sstream=None):
         sstream = sysio.StringIO()
     sstream.truncate(0)
     sstream.seek(0)
-    print(value, *arg, file=sstream)
+    
+    #print(value, *arg, file=sstream)
     return sstream.getvalue()
 
 def do_eval_zc(gt_annos,
@@ -893,7 +891,7 @@ def do_eval_zc(gt_annos,
                             difficultys,
                             1,
                             min_overlaps)
-
+        print(ret)
         # TODO 根据返回的ret处理后得到目标pr
         result['bev_mAP40'] = get_mAP40(ret['precision'])
         result['precision'] = ret['precision'][:,20]
@@ -908,7 +906,6 @@ def do_eval(gt_annos,
             min_overlaps,
             eval_types=['bbox', 'bev', '3d']):
     # min_overlaps: [num_minoverlap, metric, num_class]
-    # import ipdb;ipdb.set_trace()
     difficultys = [0, 1, 2]
     mAP11_bbox = None
     mAP11_aos = None
@@ -999,10 +996,9 @@ def kitti_eval_zc(gt_annos,
     Returns:
         tuple: String and dict of evaluation results.
     """
-    # import ipdb;ipdb.set_trace()
     assert len(eval_types) > 0, 'must contain at least one evaluation type'
 
-    assert len(current_classes) == 5, ''
+    #assert len(current_classes) == 5, ''
 
     # iou thresh for 5 classes in near distance
     overlap_near = np.array([[0.7, 0.5, 0.5, 0.7,
@@ -1010,7 +1006,6 @@ def kitti_eval_zc(gt_annos,
     overlap_far = np.array([[0.5, 0.25, 0.25, 0.5,
                              0.5]])
 
-    # import ipdb;ipdb.set_trace()
 
     # distance thresh for 5 classes in near distance
     distance_v = np.array([80, 30, 30, 80,
@@ -1037,15 +1032,23 @@ def kitti_eval_zc(gt_annos,
     # function1: 根据距离设置难度, 用来计算iou 阈值时进行索引
     add_distance(gt_annos, name_to_class, distance_v)
 
+    result_dict = {}
     result = ''
     # 计算每个类别的准召率
-    result_dict = do_eval_zc(gt_annos, dt_annos,
+    result_eval = do_eval_zc(gt_annos, dt_annos,
                      current_classes, min_overlaps,
                      eval_types)
 
-    for k, v in result_dict.items():
-        result += f'{k}: {v} \n'
-
+    # for k, v in result_eval.items():
+    #     result += f'{k}: {v} \n'
+    for j, curcls in enumerate(current_classes):
+        curcls_name = class_to_name[j]
+        result += '{} bev_mAP40 : {}, Precision: {}, Recall: {}\n'.format(curcls_name, 
+                    result_eval['bev_mAP40'][j], result_eval['precision'][j], result_eval['recall'][j])
+        result_dict[f'{curcls_name}_bev_mAP40'] = result_eval['bev_mAP40'][j]
+        result_dict[f'{curcls_name}_precision'] = result_eval['precision'][j]
+        result_dict[f'{curcls_name}_recall'] = result_eval['recall'][j]
+        
     return result,result_dict
 
 def kitti_eval(gt_annos,
