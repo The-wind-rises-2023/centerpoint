@@ -1,4 +1,36 @@
--r requirements/build.txt
--r requirements/optional.txt
--r requirements/runtime.txt
--r requirements/tests.txt
+lyft_dataset_sdk==0.0.8
+m2r==0.3.1
+matplotlib==3.5.2
+MinkowskiEngine==0.5.4
+mmcv_full==1.6.2
+mmdet==2.28.2
+mmsegmentation==0.30.0
+model_archiver==1.0.3
+numba==0.53.0
+numpy==1.21.5
+nuscenes_devkit==1.1.10
+open3d==0.16.0
+opencv_python==4.7.0.72
+pandas==1.4.4
+Pillow==9.2.0
+Pillow==9.5.0
+pycocotools==2.0.6
+pypcd==0.1.1
+pyquaternion==0.9.9
+pytest==7.1.2
+pytorch_sphinx_theme==0.0.19
+recommonmark==0.7.1
+Requests==2.30.0
+scikit_image==0.19.2
+scipy==1.9.1
+seaborn==0.11.2
+setuptools==63.4.1
+Shapely==1.8.5
+Sphinx==5.0.2
+tensorflow==2.10.0
+terminaltables==3.1.10
+torch==1.13.1
+tqdm==4.64.1
+trimesh==2.35.39
+ts==0.5.1
+waymo_open_dataset==1.0.1
