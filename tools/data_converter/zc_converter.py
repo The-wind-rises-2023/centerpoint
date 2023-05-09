@@ -61,6 +61,8 @@ def process_pcd(pcd_path):
 def process_single_data(info_path, pcd_path):
     # process anno info
     result = process_info(info_path)
+    if not result['annos']['gt_names']:
+        return None
 
     # process pcd
     save_bin_path = process_pcd(pcd_path)
@@ -79,4 +81,6 @@ def generate_pickle(infos_path, pcds_path, filename, num_workers=8, speed_up=Tru
     else:
         with futures.ThreadPoolExecutor(num_workers) as executor:
             infos = executor.map(process_single_data, infos_path, pcds_path)
+
+    infos = filter(None, infos)
     mmcv.dump(list(infos), filename)

@@ -114,17 +114,17 @@ data
 *.pkl
 *.pkl.json
 *.log.json
-work_dirs/
+#work_dirs/
 exps/
 *~
 mmdet3d/.mim
 
 # Pytorch
-*.pth
+#*.pth
 
 # demo
 *.jpg
-*.png
+#*.png
 data/s3dis/Stanford3dDataset_v1.2_Aligned_Version/
 data/scannet/scans/
 data/sunrgbd/OFFICIAL_SUNRGBD/

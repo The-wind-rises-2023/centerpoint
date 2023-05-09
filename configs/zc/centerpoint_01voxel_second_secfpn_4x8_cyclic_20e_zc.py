@@ -35,7 +35,8 @@ model = dict(
 
 
 dataset_type = 'ZCDataset'
-data_root = '/home/jing/Data/data/20221220-det-merge/'
+data_root = '/home/jing/Data/data/zxj_test/'
+#data_root = '/home/jing/Data/data/20221220-det-merge/'
 #data_root = '/home/jing/Data/data/20221220-lidar-camera/'
 #data_root = '/mnt/c/Users/xing/Downloads/test_pcd_json_20221220/'
 

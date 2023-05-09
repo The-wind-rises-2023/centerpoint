@@ -1,7 +1,7 @@
 point_cloud_range = [0, -20, -4, 120, 20, 4]
 class_names = ['Car', 'Pedestrian', 'Cyclist', 'Truck', 'Train']
 dataset_type = 'ZCDataset'
-data_root = '/home/jing/Data/data/20221220-det-merge/'
+data_root = '/home/jing/Data/data/zxj_test/'
 input_modality = dict(
     use_lidar=True,
     use_camera=False,
@@ -10,8 +10,8 @@ input_modality = dict(
     use_external=False)
 file_client_args = dict(backend='disk')
 db_sampler = dict(
-    data_root='/home/jing/Data/data/20221220-det-merge/',
-    info_path='/home/jing/Data/data/20221220-det-merge/gt_dbinfos_train.pkl',
+    data_root='/home/jing/Data/data/zxj_test/',
+    info_path='/home/jing/Data/data/zxj_test/gt_dbinfos_train.pkl',
     rate=1.0,
     prepare=dict(
         filter_by_difficulty=[-1],
@@ -34,26 +34,6 @@ train_pipeline = [
         use_dim=4,
         file_client_args=dict(backend='disk')),
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
-    dict(
-        type='ObjectSample',
-        db_sampler=dict(
-            data_root='/home/jing/Data/data/20221220-det-merge/',
-            info_path=
-            '/home/jing/Data/data/20221220-det-merge/gt_dbinfos_train.pkl',
-            rate=1.0,
-            prepare=dict(
-                filter_by_difficulty=[-1],
-                filter_by_min_points=dict(
-                    Car=10, Pedestrian=10, Cyclist=10, Truck=10, Train=10)),
-            classes=['Car', 'Pedestrian', 'Cyclist', 'Truck', 'Train'],
-            sample_groups=dict(
-                Car=5, Pedestrian=5, Cyclist=5, Truck=5, Train=5),
-            points_loader=dict(
-                type='LoadPointsFromFile',
-                coord_type='LIDAR',
-                load_dim=4,
-                use_dim=[0, 1, 2, 3],
-                file_client_args=dict(backend='disk')))),
     dict(
         type='GlobalRotScaleTrans',
         rot_range=[-0.1, 0.1],
@@ -132,8 +112,8 @@ data = dict(
     workers_per_gpu=8,
     train=dict(
         type='ZCDataset',
-        data_root='/home/jing/Data/data/20221220-det-merge/',
-        ann_file='/home/jing/Data/data/20221220-det-merge/training_infos.pkl',
+        data_root='/home/jing/Data/data/zxj_test/',
+        ann_file='/home/jing/Data/data/zxj_test/training_infos.pkl',
         pipeline=[
             dict(
                 type='LoadPointsFromFile',
@@ -145,30 +125,6 @@ data = dict(
                 type='LoadAnnotations3D',
                 with_bbox_3d=True,
                 with_label_3d=True),
-            dict(
-                type='ObjectSample',
-                db_sampler=dict(
-                    data_root='/home/jing/Data/data/20221220-det-merge/',
-                    info_path=
-                    '/home/jing/Data/data/20221220-det-merge/gt_dbinfos_train.pkl',
-                    rate=1.0,
-                    prepare=dict(
-                        filter_by_difficulty=[-1],
-                        filter_by_min_points=dict(
-                            Car=10,
-                            Pedestrian=10,
-                            Cyclist=10,
-                            Truck=10,
-                            Train=10)),
-                    classes=['Car', 'Pedestrian', 'Cyclist', 'Truck', 'Train'],
-                    sample_groups=dict(
-                        Car=5, Pedestrian=5, Cyclist=5, Truck=5, Train=5),
-                    points_loader=dict(
-                        type='LoadPointsFromFile',
-                        coord_type='LIDAR',
-                        load_dim=4,
-                        use_dim=[0, 1, 2, 3],
-                        file_client_args=dict(backend='disk')))),
             dict(
                 type='GlobalRotScaleTrans',
                 rot_range=[-0.1, 0.1],
@@ -209,7 +165,7 @@ data = dict(
     val=dict(
         type='ZCDataset',
         data_root='data/zc/',
-        ann_file='/home/jing/Data/data/20221220-det-merge/testing_infos.pkl',
+        ann_file='/home/jing/Data/data/zxj_test/testing_infos.pkl',
         pipeline=[
             dict(
                 type='LoadPointsFromFile',
@@ -253,7 +209,7 @@ data = dict(
     test=dict(
         type='ZCDataset',
         data_root='data/zc/',
-        ann_file='/home/jing/Data/data/20221220-det-merge/testing_infos.pkl',
+        ann_file='/home/jing/Data/data/zxj_test/testing_infos.pkl',
         pipeline=[
             dict(
                 type='LoadPointsFromFile',
@@ -391,7 +347,7 @@ model = dict(
             gaussian_overlap=0.1,
             max_objs=500,
             min_radius=2,
-            code_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 10.0, 10.0],
+            code_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
             point_cloud_range=[0, -20, -4, 120, 20, 4])),
     test_cfg=dict(
         pts=dict(
