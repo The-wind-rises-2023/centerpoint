@@ -3,6 +3,8 @@ import argparse
 import os
 import warnings
 
+import time
+
 import mmcv
 import torch
 from mmcv import Config, DictAction
@@ -224,6 +226,8 @@ def main():
     elif hasattr(dataset, 'PALETTE'):
         # segmentation dataset has `PALETTE` attribute
         model.PALETTE = dataset.PALETTE
+    
+    start_time = time.time()
 
     if not distributed:
         model = MMDataParallel(model, device_ids=cfg.gpu_ids)
@@ -235,6 +239,15 @@ def main():
             broadcast_buffers=False)
         outputs = multi_gpu_test(model, data_loader, args.tmpdir,
                                  args.gpu_collect)
+
+    # get inference time and fps
+    inference_time = time.time() - start_time
+    num_samples = len(data_loader) 
+    fps = num_samples / inference_time
+    print("----------------------------------------")
+    print(f"Inference Time: {inference_time:.4f}s")
+    print(f"FPS: {fps:.2f}")
+    print("----------------------------------------")
 
     rank, _ = get_dist_info()
     if rank == 0:
