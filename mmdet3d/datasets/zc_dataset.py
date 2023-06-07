@@ -15,6 +15,7 @@ from ..core.bbox import (Box3DMode, CameraInstance3DBoxes, Coord3DMode,
 from .builder import DATASETS
 from .custom_3d import Custom3DDataset
 from .pipelines import Compose
+import json
 
 
 @DATASETS.register_module()
@@ -132,6 +133,45 @@ class ZCDataset(Custom3DDataset):
                 ann_info[key][relevant_annotation_indices])
         return img_filtered_annotations
 
+    def save_data(self, results, dst, gt_data, with_gt=False):
+        """
+        save pointcloud + predict result + gt in txt format in dst dir to compare
+        torch result and other result(like result in perception onnx)
+        """
+
+        sz = len(results['boxes_3d'])
+
+        json_objects = []
+        with open(dst, 'w') as f:
+            for idx in range(sz):
+                box_lidar = results['boxes_3d'][idx]
+                box_json = {'psr': {'position': {'x': float(box_lidar.center[0][0]), 'y': float(box_lidar.center[0][1]),
+                                        'z': float(box_lidar.center[0][2])},
+                                    'scale': {'x': float(box_lidar.dims[0][0]), 'y': float(box_lidar.dims[0][1]),
+                                        'z': float(box_lidar.dims[0][2])},
+                                    'rotation': {'x': 0, 'y': 0, 'z': float(box_lidar.yaw[0])}},
+                                    'obj_type': self.CLASSES[results['labels_3d'][idx]],
+                                    'obj_id' : '1',
+                                    'score': float(results['scores_3d'][idx])
+                                    }
+                json_objects.append(box_json)
+            if with_gt:
+                # import ipdb;ipdb.set_trace()
+                for idx in range(len(gt_data)):
+                    gt_lidar = gt_data[idx]
+                    box_json = {'psr': {'position': {'x': float(gt_lidar[0]), 'y': float(gt_lidar[1]),
+                                        'z': float(gt_lidar[2])},
+                                    'scale': {'x': float(gt_lidar[3]), 'y': float(gt_lidar[4]),
+                                        'z': float(gt_lidar[5])},
+                                    'rotation': {'x': 0, 'y': 0, 'z': float(gt_lidar[6])}},
+                                    'obj_type': "GT",
+                                    'obj_id' : '1',
+                                    'score': 1.0
+                                    }
+                    json_objects.append(box_json)
+
+            json.dump(json_objects, f)
+
     def evaluate(self,
                  results,
                  metric=None,
@@ -239,6 +279,15 @@ class ZCDataset(Custom3DDataset):
 
             show_gt_bboxes = Box3DMode.convert(gt_bboxes, Box3DMode.LIDAR,
                                                Box3DMode.DEPTH)
+            # save data as json
+            savedata=False
+            save_data_with_gt=False
+            if savedata:
+                predict_dir = osp.join(out_dir, "predict")
+                mmcv.mkdir_or_exist(predict_dir)
+                json_path = predict_dir + ('/%s.json' % file_name)
+                self.save_data(result, json_path, gt_bboxes, save_data_with_gt)
+
             pred_bboxes = result['boxes_3d'].tensor.numpy()
             show_pred_bboxes = Box3DMode.convert(pred_bboxes, Box3DMode.LIDAR,
                                                  Box3DMode.DEPTH)

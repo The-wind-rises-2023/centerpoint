@@ -35,6 +35,26 @@ train_pipeline = [
         file_client_args=dict(backend='disk')),
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
     dict(
+        type='ObjectSample',
+        db_sampler=dict(
+            data_root='/home/jing/Data/data/20221220-det-merge/',
+            info_path=
+            '/home/jing/Data/data/20221220-det-merge/gt_dbinfos_train.pkl',
+            rate=1.0,
+            prepare=dict(
+                filter_by_difficulty=[-1],
+                filter_by_min_points=dict(
+                    Car=10, Pedestrian=10, Cyclist=10, Truck=10, Train=10)),
+            classes=['Car', 'Pedestrian', 'Cyclist', 'Truck', 'Train'],
+            sample_groups=dict(
+                Car=5, Pedestrian=5, Cyclist=5, Truck=5, Train=5),
+            points_loader=dict(
+                type='LoadPointsFromFile',
+                coord_type='LIDAR',
+                load_dim=4,
+                use_dim=[0, 1, 2, 3],
+                file_client_args=dict(backend='disk')))),
+    dict(
         type='GlobalRotScaleTrans',
         rot_range=[-0.1, 0.1],
         scale_ratio_range=[0.95, 1.05],
@@ -125,6 +145,30 @@ data = dict(
                 type='LoadAnnotations3D',
                 with_bbox_3d=True,
                 with_label_3d=True),
+            dict(
+                type='ObjectSample',
+                db_sampler=dict(
+                    data_root='/home/jing/Data/data/20221220-det-merge/',
+                    info_path=
+                    '/home/jing/Data/data/20221220-det-merge/gt_dbinfos_train.pkl',
+                    rate=1.0,
+                    prepare=dict(
+                        filter_by_difficulty=[-1],
+                        filter_by_min_points=dict(
+                            Car=10,
+                            Pedestrian=10,
+                            Cyclist=10,
+                            Truck=10,
+                            Train=10)),
+                    classes=['Car', 'Pedestrian', 'Cyclist', 'Truck', 'Train'],
+                    sample_groups=dict(
+                        Car=5, Pedestrian=5, Cyclist=5, Truck=5, Train=5),
+                    points_loader=dict(
+                        type='LoadPointsFromFile',
+                        coord_type='LIDAR',
+                        load_dim=4,
+                        use_dim=[0, 1, 2, 3],
+                        file_client_args=dict(backend='disk')))),
             dict(
                 type='GlobalRotScaleTrans',
                 rot_range=[-0.1, 0.1],
@@ -337,7 +381,8 @@ model = dict(
             type='SeparateHead', init_bias=-2.19, final_kernel=3),
         loss_cls=dict(type='GaussianFocalLoss', reduction='mean'),
         loss_bbox=dict(type='L1Loss', reduction='mean', loss_weight=0.25),
-        norm_bbox=True),
+        norm_bbox=True,
+        task_weight=[2.0, 1.5, 1.0, 1.0, 1.0]),
     train_cfg=dict(
         pts=dict(
             grid_size=[1024, 1024, 40],
@@ -347,7 +392,7 @@ model = dict(
             gaussian_overlap=0.1,
             max_objs=500,
             min_radius=2,
-            code_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+            code_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 5.0, 5.0],
             point_cloud_range=[0, -20, -4, 120, 20, 4])),
     test_cfg=dict(
         pts=dict(
@@ -375,7 +420,7 @@ momentum_config = dict(
     target_ratio=(0.8947368421052632, 1),
     cyclic_times=1,
     step_ratio_up=0.4)
-runner = dict(type='EpochBasedRunner', max_epochs=80)
+runner = dict(type='EpochBasedRunner', max_epochs=120)
 checkpoint_config = dict(interval=1)
 log_config = dict(
     interval=1,

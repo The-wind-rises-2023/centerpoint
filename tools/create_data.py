@@ -276,6 +276,77 @@ def zc_data_prep(
         with_mask=False,
         num_worker=workers).create()
 
+def zc_semantic_data_prep(
+            root_path,
+            out_dir,
+            info_prefix="json",
+            pcd_prefix="pcd", 
+            training_ratios = 0.9,
+            workers=4,
+            with_plain=False):
+    """
+    root_path-> pcd-> xxx.pcd...
+
+    TODO: deal with road plain
+    """
+    import mmcv
+    import numpy as np
+    import math
+    import os
+    from glob import glob
+    from tools.data_converter import zc_semantic_converter as zc_semantic
+    from tqdm import tqdm
+
+    assert osp.exists(root_path)
+    assert training_ratios <= 1.0
+    
+    info_files = glob(osp.join(root_path, info_prefix, '*.json'))
+    ori_pcd_files = glob(osp.join(root_path, pcd_prefix, '*.pcd'))
+
+    pcd_files = []
+    # check info files and pcd files to make sure data are matched when list length is not equal
+    for info_file in tqdm(info_files):
+        name = osp.splitext(osp.basename(info_file))[0]
+        pcd_path = osp.join(root_path, pcd_prefix, name + '.pcd')
+        assert pcd_path in ori_pcd_files, print(f"{pcd_path} not exist!")
+        pcd_files.append(pcd_path)
+
+    assert len(info_files) > 0 and len(pcd_files) > 0, print(
+        f"{len(info_files)}{len(pcd_files)}")
+    
+    assert len(pcd_files) > 0, print(f"{len(pcd_files)}")
+
+    zc_semantic.ROOTDIR = out_dir
+    os.makedirs(out_dir, exist_ok=True)
+    os.makedirs(osp.join(out_dir, 'bin'), exist_ok=True)
+
+    # generate pickles
+    idxs = np.arange(len(pcd_files))
+    np.random.shuffle(idxs) 
+    splits = ['training', 'testing']
+
+    train_numbers = int(training_ratios * len(pcd_files))
+    # may skip some files
+    other_numbers = math.floor(len(pcd_files) - train_numbers / (len(splits) - 1))
+
+    cur_numbers = 0
+    print(f"Start generate {len(splits)} pickle files...")
+    for split in splits:
+        if split == 'training':
+            numbers = train_numbers
+        else:
+            numbers = other_numbers
+
+        split_idxs = idxs[cur_numbers:cur_numbers + numbers]
+
+        split_infos = [info_files[idx] for idx in split_idxs]
+
+        split_pcds = [pcd_files[idx] for idx in split_idxs]
+
+        cur_numbers += numbers
+        pkl_file_name = osp.join(out_dir, f'{split}_infos.pkl')
+
+        zc_semantic.generate_pickle(split_infos, split_pcds, pkl_file_name, num_workers=workers)
 
 parser = argparse.ArgumentParser(description='Data converter arg parser')
 parser.add_argument('dataset', metavar='kitti', help='name of the dataset')
@@ -392,6 +463,12 @@ if __name__ == '__main__':
             workers=args.workers)
     elif args.dataset == 'zc':
         zc_data_prep(
+            root_path=args.root_path,
+            info_prefix=args.extra_tag,
+            out_dir=args.out_dir,
+            workers=args.workers)
+    elif args.dataset == 'zc_semantic':
+        zc_semantic_data_prep(
             root_path=args.root_path,
             info_prefix=args.extra_tag,
             out_dir=args.out_dir,

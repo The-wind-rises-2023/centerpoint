@@ -289,7 +289,9 @@ class CenterHead(BaseModule):
                  norm_cfg=dict(type='BN2d'),
                  bias='auto',
                  norm_bbox=True,
-                 init_cfg=None):
+                 init_cfg=None,
+                 task_weight=None 
+                 ):
         assert init_cfg is None, 'To prevent abnormal initialization ' \
             'behavior, init_cfg is not allowed to be set'
         super(CenterHead, self).__init__(init_cfg=init_cfg)
@@ -307,6 +309,9 @@ class CenterHead(BaseModule):
         self.bbox_coder = build_bbox_coder(bbox_coder)
         self.num_anchor_per_locs = [n for n in num_classes]
         self.fp16_enabled = False
+
+        self.task_weight = torch.ones(len(tasks), dtype=torch.float32) if task_weight is None else torch.tensor(
+            task_weight, dtype=torch.float32).reshape(-1)
 
         # a shared convolution
         self.shared_conv = ConvModule(
@@ -598,7 +603,7 @@ class CenterHead(BaseModule):
         heatmaps, anno_boxes, inds, masks = self.get_targets(
             gt_bboxes_3d, gt_labels_3d)
         loss_dict = dict()
-        for task_id, preds_dict in enumerate(preds_dicts):
+        for task_id, (task_weight, preds_dict) in enumerate(zip(self.task_weight, preds_dicts)):
             # heatmap focal loss
             preds_dict[0]['heatmap'] = clip_sigmoid(preds_dict[0]['heatmap'])
             num_pos = heatmaps[task_id].eq(1).float().sum().item()
@@ -634,8 +639,8 @@ class CenterHead(BaseModule):
             bbox_weights = mask * mask.new_tensor(code_weights)
             loss_bbox = self.loss_bbox(
                 pred, target_box, bbox_weights, avg_factor=(num + 1e-4))
-            loss_dict[f'task{task_id}.loss_heatmap'] = loss_heatmap
-            loss_dict[f'task{task_id}.loss_bbox'] = loss_bbox
+            loss_dict[f'task{task_id}.loss_heatmap'] = loss_heatmap * task_weight
+            loss_dict[f'task{task_id}.loss_bbox'] = loss_bbox * task_weight
         return loss_dict
 
     def get_bboxes(self, preds_dicts, img_metas, img=None, rescale=False):

@@ -23,6 +23,7 @@ model = dict(
             dict(num_class=1, class_names=['Truck']),
             dict(num_class=1, class_names=['Train'])
         ],
+        task_weight=[2.0,1.5,1.0,1.0,1.0],
         # remove vel
         common_heads=dict(
             reg=(2, 2), height=(1, 2), dim=(3, 2), rot=(2, 2)),
@@ -30,13 +31,12 @@ model = dict(
                         post_center_range=[0, -20, -4, 120, 20, 4],
                         )),
     # model training and testing settings
-    train_cfg=dict(pts=dict(point_cloud_range=point_cloud_range, code_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])),
+    train_cfg=dict(pts=dict(point_cloud_range=point_cloud_range, code_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 5.0, 5.0])),
     test_cfg=dict(pts=dict(pc_range=point_cloud_range[:2], post_center_limit_range=point_cloud_range)))
 
 
 dataset_type = 'ZCDataset'
-data_root = '/home/jing/Data/data/zxj_test/'
-#data_root = '/home/jing/Data/data/20221220-det-merge/'
+data_root = '/home/jing/Data/data/20221220-det-merge/'
 #data_root = '/home/jing/Data/data/20221220-lidar-camera/'
 #data_root = '/mnt/c/Users/xing/Downloads/test_pcd_json_20221220/'
 
@@ -195,7 +195,7 @@ evaluation = dict(interval=4, pipeline=eval_pipeline)
 log_config = dict(
     interval=1)
 
-runner = dict(max_epochs=80)
+runner = dict(max_epochs=120)
 
 #lr = 1e-5
 # fp16 settings

@@ -9,6 +9,7 @@ from .lyft_dataset import LyftDataset
 from .nuscenes_dataset import NuScenesDataset
 from .nuscenes_mono_dataset import NuScenesMonoDataset
 from .zc_dataset import ZCDataset
+from .zc_semantic_dataset import ZCSemanticDataset
 # yapf: disable
 from .pipelines import (AffineResize, BackgroundPointsFilter, GlobalAlignment,
                         GlobalRotScaleTrans, IndoorPatchPointSample,
@@ -31,7 +32,7 @@ from .utils import get_loading_pipeline
 from .waymo_dataset import WaymoDataset
 
 __all__ = [
-    'ZCDataset',
+    'ZCDataset', 'ZCSemanticDataset',
     'KittiDataset', 'KittiMonoDataset', 'build_dataloader', 'DATASETS',
     'build_dataset', 'NuScenesDataset', 'NuScenesMonoDataset', 'LyftDataset',
     'ObjectSample', 'RandomFlip3D', 'ObjectNoise', 'GlobalRotScaleTrans',

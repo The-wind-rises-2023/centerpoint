@@ -4,7 +4,8 @@
 # use a default schedule.
 # optimizer
 # This schedule is mainly used by models on nuScenes dataset
-optimizer = dict(type='AdamW', lr=1e-4, weight_decay=0.01)
+optimizer = dict(type='AdamW', lr=1e-5, weight_decay=0.01)
+#optimizer = dict(type='AdamW', lr=1e-4, weight_decay=0.01)
 # max_norm=10 is better for SECOND
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 lr_config = dict(
