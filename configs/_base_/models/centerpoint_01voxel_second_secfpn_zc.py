@@ -1,9 +1,15 @@
 voxel_size = [0.1, 0.1, 0.2]
 model = dict(
     type='CenterPoint',
+    # max_num_points : voxel 中最多point数, voxel_size 的尺寸（x、y、z), train 和 test 最多的voxel数
     pts_voxel_layer=dict(
-        max_num_points=10, voxel_size=voxel_size, max_voxels=(90000, 120000)),
+        max_num_points=32, voxel_size=voxel_size, max_voxels=(90000, 120000)),
+    # num_features: 点的特征维度
     pts_voxel_encoder=dict(type='HardSimpleVFE', num_features=4),
+    # sparse conv 编码器, sparse_shape : z y x 顺序，point_cloud_range / voxel_size 计算
+    # output_channels : 输出通道数.
+    # encoder_channels : 多层encoder对应的通道conv 通道数, 同时会设置stride为2，featuremap 最终变为原来 1 / 8
+    # 多层encoder 对应的padding 尺寸
     pts_middle_encoder=dict(
         type='SparseEncoder',
         in_channels=4,
@@ -14,6 +20,10 @@ model = dict(
                                                                       128)),
         encoder_paddings=((0, 0, 1), (0, 0, 1), (0, 0, [0, 1, 1]), (0, 0)),
         block_type='basicblock'),
+    # backbone. 经过backbone 后包含两层featurempa， 尺寸分别为原始featuremap 1/8 和 1/16
+    # out_channels: 输出2层，通道数分别为128，256
+    # layer_nums: 输出的2层featuremap 分别使用了5层基础层
+    # layer_strides: 输出的2层的conv stride
     pts_backbone=dict(
         type='SECOND',
         in_channels=256,
@@ -22,6 +32,9 @@ model = dict(
         layer_strides=[1, 2],
         norm_cfg=dict(type='BN', eps=1e-3, momentum=0.01),
         conv_cfg=dict(type='Conv2d', bias=False)),
+    # fpn neck, 经过fpn后是concat 后的 1/8 原始featuremap 大小的featuremap
+    # 输入的2层feautremap 在 fpn中的输出通道数
+    # upsample_strides: 2层featuremap 的上采样倍数，1表示保持原始尺寸，2 表示上采样2倍,
     pts_neck=dict(
         type='SECONDFPN',
         in_channels=[128, 256],
@@ -30,6 +43,7 @@ model = dict(
         norm_cfg=dict(type='BN', eps=1e-3, momentum=0.01),
         upsample_cfg=dict(type='deconv', bias=False),
         use_conv_for_no_stride=True),
+    # head 参数, in_channels 对应上面的out_channels. tasks 是针对不同的任务的输出头，每个task 会输出heatmap 和 回归值, 对应是否有障碍物以及障碍物的位置、尺寸等
     pts_bbox_head=dict(
         type='CenterHead',
         in_channels=sum([256, 256]),
