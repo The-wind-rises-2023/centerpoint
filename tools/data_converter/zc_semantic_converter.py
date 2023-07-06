@@ -48,9 +48,14 @@ def process_pcd(pcd_path):
                     pc.pc_data['y'],
                     pc.pc_data['z']], 
                     axis=-1)
-    pts = np.concatenate([pts.astype(np.float32), np.expand_dims(
-        pc.pc_data["intensity"].astype(np.float32), -1), np.expand_dims(
-        pc.pc_data["label"].astype(np.float32), -1)], axis=1)
+    if len(pc.size) > 9:
+        pts = np.concatenate([pts.astype(np.float32), np.expand_dims(
+            pc.pc_data["intensity"].astype(np.float32), -1), np.expand_dims(
+            pc.pc_data["label"].astype(np.float32), -1)], axis=1)
+    else:
+        pts = np.concatenate([pts.astype(np.float32), np.expand_dims(
+        pc.pc_data["intensity"].astype(np.float32), -1), np.ones_like(np.expand_dims(
+        pc.pc_data["intensity"].astype(np.float32), -1))], axis=1)
     global ROOTDIR
     save_path = osp.join(ROOTDIR, f"bin/{file_name}.bin")
     pts.tofile(save_path)
@@ -74,11 +79,17 @@ def process_single_data(info_path, pcd_path):
 
 def generate_pickle(infos_path, pcds_path, filename, num_workers=8, speed_up=True):
     # for io speed
+    if len(infos_path) == 0:
+        for pcd_path in pcds_path:
+            infos = process_single_data([], pcd_path)
+        mmcv.dump(list(infos), filename)
+        return 
+
     if speed_up:
         with futures.ProcessPoolExecutor(num_workers) as executor:
             infos = executor.map(process_single_data, infos_path, pcds_path)
     else:
-        with futures.ThreadPoolExecutor(num_workers) as executor:
+        with futures.ThreadPoolExecutor(1) as executor:
             infos = executor.map(process_single_data, infos_path, pcds_path)
 
     infos = filter(None, infos)

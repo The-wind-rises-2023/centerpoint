@@ -200,7 +200,8 @@ data = dict(
     # test 数据文件路径
     test=dict(pipeline=test_pipeline, classes=class_names,
             ann_file=data_root + 'testing_infos.pkl',
-              ))
+             # do_not_eval=True, #打开则不进行eval，可对原始数据进行推理
+            )
 
 evaluation = dict(interval=10, pipeline=eval_pipeline)
 

@@ -304,15 +304,23 @@ def zc_semantic_data_prep(
     ori_pcd_files = glob(osp.join(root_path, pcd_prefix, '*.pcd'))
 
     pcd_files = []
-    # check info files and pcd files to make sure data are matched when list length is not equal
-    for info_file in tqdm(info_files):
-        name = osp.splitext(osp.basename(info_file))[0]
-        pcd_path = osp.join(root_path, pcd_prefix, name + '.pcd')
-        assert pcd_path in ori_pcd_files, print(f"{pcd_path} not exist!")
-        pcd_files.append(pcd_path)
 
-    assert len(info_files) > 0 and len(pcd_files) > 0, print(
-        f"{len(info_files)}{len(pcd_files)}")
+    if len(info_files) == 0:
+        for pcd_file in tqdm(ori_pcd_files):
+            pcd_files.append(pcd_file)
+            info_files.append(None)
+        # zc_semantic.generate_pickle([], pcd_files, 'testing_infos.pkl', num_workers=workers)
+        # return
+    else:
+        # check info files and pcd files to make sure data are matched when list length is not equal
+        for info_file in tqdm(info_files):
+            name = osp.splitext(osp.basename(info_file))[0]
+            pcd_path = osp.join(root_path, pcd_prefix, name + '.pcd')
+            assert pcd_path in ori_pcd_files, print(f"{pcd_path} not exist!")
+            pcd_files.append(pcd_path)
+
+    # assert len(info_files) > 0 and len(pcd_files) > 0, print(
+    #     f"{len(info_files)}{len(pcd_files)}")
     
     assert len(pcd_files) > 0, print(f"{len(pcd_files)}")
 

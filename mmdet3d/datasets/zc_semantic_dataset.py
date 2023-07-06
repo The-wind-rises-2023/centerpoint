@@ -63,6 +63,7 @@ class ZCSemanticDataset(Custom3DDataset):
                  box_type_3d='LiDAR',
                  filter_empty_gt=True,
                  test_mode=False,
+                 do_not_eval=False,
                  pcd_limit_range=None, 
                  **kwargs):
         super().__init__(
@@ -78,24 +79,28 @@ class ZCSemanticDataset(Custom3DDataset):
 
         assert self.modality is not None
         self.pcd_limit_range = pcd_limit_range
+        self.do_not_eval = do_not_eval
 
     def convert_to_kitti_format(self, gts, dets, label2cat):
-        for gt in gts:
-            gt['name'] = [
-                'DontCare' if n not in self.CLASSES else n for n in gt['gt_names']]
-            gt['occluded'] = np.array([0 for i in range(len(gt['name']))])
-            gt['truncated'] = np.array([0 for i in range(len(gt['name']))])
-            gt['bbox'] = np.array([[0,0,200,200] for i in range(len(gt['name']))]).reshape(-1,4) #x1y1x2y2 fake image box
-            
-            # alpha = local_yaw, but no need now
-            gt['alpha'] = np.array([0 for i in range(len(gt['name']))]) # do not care and do not use aos
+        if not self.do_not_eval:
+            for gt in gts:
+                gt['name'] = [
+                    'DontCare' if n not in self.CLASSES else n for n in gt['gt_names']]
+                gt['occluded'] = np.array([0 for i in range(len(gt['name']))])
+                gt['truncated'] = np.array([0 for i in range(len(gt['name']))])
+                gt['bbox'] = np.array([[0,0,200,200] for i in range(len(gt['name']))]).reshape(-1,4) #x1y1x2y2 fake image box
+                
+                # alpha = local_yaw, but no need now
+                gt['alpha'] = np.array([0 for i in range(len(gt['name']))]) # do not care and do not use aos
 
-            # TODO check clock wise, rotation_y ?
-            #3d box in camera axies
-            cam_box =  LiDARInstance3DBoxes(gt['gt_bboxes_3d']).convert_to(Box3DMode.CAM)
-            gt['location'] = cam_box.bottom_center.numpy()
-            gt['dimensions'] = cam_box.dims.numpy()
-            gt['rotation_y'] = cam_box.yaw.numpy()
+                # TODO check clock wise, rotation_y ?
+                #3d box in camera axies
+                cam_box =  LiDARInstance3DBoxes(gt['gt_bboxes_3d']).convert_to(Box3DMode.CAM)
+                gt['location'] = cam_box.bottom_center.numpy()
+                gt['dimensions'] = cam_box.dims.numpy()
+                gt['rotation_y'] = cam_box.yaw.numpy()
+        else:
+            gts = []
 
         for dt in dets:
             if len(dt['labels_3d']) == 0:
@@ -212,12 +217,15 @@ class ZCSemanticDataset(Custom3DDataset):
         result_files, tmp_dir = self.format_results(results, pklfile_prefix)
 
         # for semantic
-        from mmdet3d.core.evaluation import seg_eval
-        gt_labels=[info['seg_gt'].cpu() for info in result_files]
         dts=[info['label'].cpu() for info in result_files]
         label2cat = {i: cat_id for i, cat_id in enumerate(self.SEG_CLASSES)}
-               
-        ap_dict = seg_eval(gt_labels, dts, label2cat, 0)
+        
+        if not self.do_not_eval:
+            from mmdet3d.core.evaluation import seg_eval
+            gt_labels=[info['seg_gt'].cpu() for info in result_files]       
+            ap_dict = seg_eval(gt_labels, dts, label2cat, 0)
+        else: 
+            ap_dict = {}
 
         if tmp_dir is not None:
             tmp_dir.cleanup()
@@ -261,8 +269,11 @@ class ZCSemanticDataset(Custom3DDataset):
             img_path = predict_dir + ('/%s.png' % file_name)
 
             pred_np = np.array(result['label'][0].to('cpu'))
-            gt_np = np.array(result['seg_gt'][0].to('cpu'))
             pred_img = self.get_label_color(pred_np)
-            gt_img = self.get_label_color(gt_np)
-            res = np.concatenate((pred_img, gt_img), axis = 0)
+            if not self.do_not_eval:
+                gt_np = np.array(result['seg_gt'][0].to('cpu'))
+                gt_img = self.get_label_color(gt_np)
+                res = np.concatenate((pred_img, gt_img), axis = 0)
+            else: 
+                res = pred_img
             cv.imwrite(img_path, res)
