@@ -237,7 +237,7 @@ class ZCSemanticDataset(Custom3DDataset):
         sem_label_color_list = [np.array([0, 0, 0]), 
                         np.array([220, 220, 220]), 
                         np.array([255,0,255]), 
-                        np.array([255, 150, 255]),
+                        np.array([0, 255, 255]),
                         np.array([0, 255, 0]),
                         np.array([128,128,128])]
         color_map = np.zeros((label_map.shape[0], label_map.shape[1], 3))

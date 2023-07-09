@@ -276,10 +276,44 @@ def zc_data_prep(
         with_mask=False,
         num_worker=workers).create()
 
+
+def zc_data_dummy(
+        root_path,
+        out_dir,
+        workers=4):
+    """
+    root_path-> json-> xxx.json...
+             -> pcd-> xxx.pcd...
+
+    TODO: deal with road plain
+    """
+    import mmcv
+    import numpy as np
+    import math
+    import os
+    from glob import glob
+    from tools.data_converter import zc_converter as zc
+    from tqdm import tqdm
+
+    assert osp.exists(root_path)
+
+    pcd_files = glob(osp.join(root_path, '*/*.pcd'))
+
+    assert len(pcd_files) >= 0, print(
+        f"{len(pcd_files)}")
+
+    zc.ROOTDIR = out_dir
+    os.makedirs(out_dir, exist_ok=True)
+    os.makedirs(osp.join(out_dir, 'bin'), exist_ok=True)
+
+    pkl_file_name = osp.join(out_dir, f'dummy_infos.pkl')
+    zc.generate_pickle([None for _ in range(len(pcd_files))], pcd_files, pkl_file_name, num_workers=workers)
+
+
 def zc_semantic_data_prep(
             root_path,
             out_dir,
-            info_prefix="json",
+            info_prefix=None,
             pcd_prefix="pcd", 
             training_ratios = 0.9,
             workers=4,
@@ -302,7 +336,7 @@ def zc_semantic_data_prep(
     
     info_files = glob(osp.join(root_path, info_prefix, '*.json'))
     ori_pcd_files = glob(osp.join(root_path, pcd_prefix, '*.pcd'))
-
+    
     pcd_files = []
 
     if len(info_files) == 0:
@@ -475,6 +509,11 @@ if __name__ == '__main__':
             info_prefix=args.extra_tag,
             out_dir=args.out_dir,
             workers=args.workers)
+    elif args.dataset == 'zc_dummy':
+        zc_data_dummy(
+            root_path=args.root_path,
+            out_dir=args.out_dir,
+        ) 
     elif args.dataset == 'zc_semantic':
         zc_semantic_data_prep(
             root_path=args.root_path,

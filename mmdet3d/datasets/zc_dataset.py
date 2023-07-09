@@ -180,7 +180,8 @@ class ZCDataset(Custom3DDataset):
                  submission_prefix=None,
                  show=False,
                  out_dir=None,
-                 pipeline=None):
+                 pipeline=None,
+                 do_not_eval=False):
         """Evaluation in KITTI protocol.
 
         Args:
@@ -211,45 +212,46 @@ class ZCDataset(Custom3DDataset):
         if 'pts_bbox' in result_files[0]:
             for r in result_files:
                 r.update({k: r['pts_bbox'][k] for k in r['pts_bbox'].keys()}) 
+        
+        ap_dict = dict()
+        if not do_not_eval:
+            from mmdet3d.core.evaluation import kitti_eval_zc
+            gt_annos = [info['annos'] for info in self.data_infos]
+            label2cat = {i: cat_id for i, cat_id in enumerate(self.CLASSES)}
 
-        from mmdet3d.core.evaluation import kitti_eval_zc
-        gt_annos = [info['annos'] for info in self.data_infos]
-        label2cat = {i: cat_id for i, cat_id in enumerate(self.CLASSES)}
+            gt_annos, result_files = self.convert_to_kitti_format(gt_annos, result_files, label2cat)
+            if isinstance(result_files, dict):
+                for name, result_files_ in result_files.items():
+                    eval_types = ['bev']
+                    if 'img' in name:
+                        eval_types = ['bbox']
+                    ap_result_str, ap_dict_ = kitti_eval_zc(
+                        gt_annos,
+                        result_files_,
+                        self.CLASSES,
+                        eval_types=eval_types)
+                    for ap_type, ap in ap_dict_.items():
+                        ap_dict[f'{name}/{ap_type}'] = float('{:.4f}'.format(ap))
 
-        gt_annos, result_files = self.convert_to_kitti_format(gt_annos, result_files, label2cat)
-        if isinstance(result_files, dict):
-            ap_dict = dict()
-            for name, result_files_ in result_files.items():
-                eval_types = ['bev']
-                if 'img' in name:
-                    eval_types = ['bbox']
-                ap_result_str, ap_dict_ = kitti_eval_zc(
-                    gt_annos,
-                    result_files_,
-                    self.CLASSES,
-                    eval_types=eval_types)
-                for ap_type, ap in ap_dict_.items():
-                    ap_dict[f'{name}/{ap_type}'] = float('{:.4f}'.format(ap))
+                    print_log(
+                        f'Results of {name}:\n' + ap_result_str, logger=logger)
 
-                print_log(
-                    f'Results of {name}:\n' + ap_result_str, logger=logger)
-
-        else:
-            if metric == 'img_bbox':
-                ap_result_str, ap_dict = kitti_eval_zc(
-                    gt_annos, result_files, self.CLASSES, eval_types=['bbox'])
             else:
-                ap_result_str, ap_dict = kitti_eval_zc(gt_annos, result_files,
-                                                    self.CLASSES)
-            print_log('\n' + ap_result_str, logger=logger)
+                if metric == 'img_bbox':
+                    ap_result_str, ap_dict = kitti_eval_zc(
+                        gt_annos, result_files, self.CLASSES, eval_types=['bbox'])
+                else:
+                    ap_result_str, ap_dict = kitti_eval_zc(gt_annos, result_files,
+                                                        self.CLASSES)
+                print_log('\n' + ap_result_str, logger=logger)
 
         if tmp_dir is not None:
             tmp_dir.cleanup()
         if show or out_dir:
-            self.show(results, out_dir, show=show, pipeline=pipeline)
+            self.show(results, out_dir, show=show, pipeline=pipeline, do_not_eval=do_not_eval)
         return ap_dict
 
-    def show(self, results, out_dir, show=True, pipeline=None):
+    def show(self, results, out_dir, show=True, pipeline=None, do_not_eval=False):
         """Results visualization.
 
         Args:
@@ -275,9 +277,10 @@ class ZCDataset(Custom3DDataset):
             points = Coord3DMode.convert_point(points, Coord3DMode.LIDAR,
                                                Coord3DMode.DEPTH)
             
-            gt_bboxes = self.get_ann_info(i)['gt_bboxes_3d'].tensor.numpy()
-
-            show_gt_bboxes = Box3DMode.convert(gt_bboxes, Box3DMode.LIDAR,
+            gt_bboxes, show_gt_bboxes = None,None
+            if not do_not_eval:
+                gt_bboxes = self.get_ann_info(i)['gt_bboxes_3d'].tensor.numpy()
+                show_gt_bboxes = Box3DMode.convert(gt_bboxes, Box3DMode.LIDAR,
                                                Box3DMode.DEPTH)
             # save data as json
             savedata=False

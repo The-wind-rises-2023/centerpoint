@@ -57,14 +57,27 @@ def process_pcd(pcd_path):
 
 
 def process_single_data(info_path, pcd_path):
+   # process pcd
+    save_bin_path = process_pcd(pcd_path)
+
+    if info_path is None:
+        # process pcd
+        return {
+            'sample_idx': osp.splitext(osp.basename(pcd_path))[0],
+            'annos': {'box_type_3d': 'lidar',
+                      'gt_bboxes_3d': np.empty((0, 7)), 'gt_names': []},
+            'calib': {},
+            'images': {},
+            'lidar_points': {'lidar_path': save_bin_path,
+                             }
+        }
+
     # process anno info
     result = process_info(info_path)
     if not result['annos']['gt_names']:
         return None
 
-    # process pcd
-    save_bin_path = process_pcd(pcd_path)
-
+    
     result.update(
         {'lidar_points': {'lidar_path': save_bin_path,
                           }})

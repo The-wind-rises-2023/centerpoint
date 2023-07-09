@@ -1,7 +1,7 @@
 point_cloud_range = [0, -20, -4, 120, 20, 4]
 class_names = ['Car', 'Pedestrian', 'Cyclist', 'Truck', 'Train']
 dataset_type = 'ZCDataset'
-data_root = '/home/jing/Data/data/zxj_test/'
+data_root = '/home/jing/Data/data/20230617-det-merge/'
 input_modality = dict(
     use_lidar=True,
     use_camera=False,
@@ -10,8 +10,8 @@ input_modality = dict(
     use_external=False)
 file_client_args = dict(backend='disk')
 db_sampler = dict(
-    data_root='/home/jing/Data/data/zxj_test/',
-    info_path='/home/jing/Data/data/zxj_test/gt_dbinfos_train.pkl',
+    data_root='/home/jing/Data/data/20230617-det-merge/',
+    info_path='/home/jing/Data/data/20230617-det-merge/gt_dbinfos_train.pkl',
     rate=1.0,
     prepare=dict(
         filter_by_difficulty=[-1],
@@ -37,9 +37,9 @@ train_pipeline = [
     dict(
         type='ObjectSample',
         db_sampler=dict(
-            data_root='/home/jing/Data/data/20221220-det-merge/',
+            data_root='/home/jing/Data/data/20230617-det-merge/',
             info_path=
-            '/home/jing/Data/data/20221220-det-merge/gt_dbinfos_train.pkl',
+            '/home/jing/Data/data/20230617-det-merge/gt_dbinfos_train.pkl',
             rate=1.0,
             prepare=dict(
                 filter_by_difficulty=[-1],
@@ -132,8 +132,8 @@ data = dict(
     workers_per_gpu=8,
     train=dict(
         type='ZCDataset',
-        data_root='/home/jing/Data/data/zxj_test/',
-        ann_file='/home/jing/Data/data/zxj_test/training_infos.pkl',
+        data_root='/home/jing/Data/data/20230617-det-merge/',
+        ann_file='/home/jing/Data/data/20230617-det-merge/training_infos.pkl',
         pipeline=[
             dict(
                 type='LoadPointsFromFile',
@@ -148,9 +148,9 @@ data = dict(
             dict(
                 type='ObjectSample',
                 db_sampler=dict(
-                    data_root='/home/jing/Data/data/20221220-det-merge/',
+                    data_root='/home/jing/Data/data/20230617-det-merge/',
                     info_path=
-                    '/home/jing/Data/data/20221220-det-merge/gt_dbinfos_train.pkl',
+                    '/home/jing/Data/data/20230617-det-merge/gt_dbinfos_train.pkl',
                     rate=1.0,
                     prepare=dict(
                         filter_by_difficulty=[-1],
@@ -209,7 +209,7 @@ data = dict(
     val=dict(
         type='ZCDataset',
         data_root='data/zc/',
-        ann_file='/home/jing/Data/data/zxj_test/testing_infos.pkl',
+        ann_file='/home/jing/Data/data/20230617-det-merge/testing_infos.pkl',
         pipeline=[
             dict(
                 type='LoadPointsFromFile',
@@ -253,7 +253,7 @@ data = dict(
     test=dict(
         type='ZCDataset',
         data_root='data/zc/',
-        ann_file='/home/jing/Data/data/zxj_test/testing_infos.pkl',
+        ann_file='/home/jing/Data/data/20230617-det-merge/testing_infos.pkl',
         pipeline=[
             dict(
                 type='LoadPointsFromFile',
@@ -295,7 +295,7 @@ data = dict(
         test_mode=True,
         box_type_3d='LiDAR'))
 evaluation = dict(
-    interval=4,
+    interval=1,
     pipeline=[
         dict(
             type='LoadPointsFromFile',
@@ -325,7 +325,7 @@ voxel_size = [0.1, 0.1, 0.2]
 model = dict(
     type='CenterPoint',
     pts_voxel_layer=dict(
-        max_num_points=10,
+        max_num_points=32,
         voxel_size=[0.1, 0.1, 0.2],
         max_voxels=(90000, 120000),
         point_cloud_range=[0, -20, -4, 120, 20, 4]),
@@ -333,7 +333,7 @@ model = dict(
     pts_middle_encoder=dict(
         type='SparseEncoder',
         in_channels=4,
-        sparse_shape=[41, 1024, 1024],
+        sparse_shape=[41, 400, 1200],
         output_channels=128,
         order=('conv', 'norm', 'act'),
         encoder_channels=((16, 16, 32), (32, 32, 64), (64, 64, 128), (128,
@@ -385,14 +385,14 @@ model = dict(
         task_weight=[2.0, 1.5, 1.0, 1.0, 1.0]),
     train_cfg=dict(
         pts=dict(
-            grid_size=[1024, 1024, 40],
+            grid_size=[1200, 400, 40],
             voxel_size=[0.1, 0.1, 0.2],
             out_size_factor=8,
             dense_reg=1,
             gaussian_overlap=0.1,
             max_objs=500,
             min_radius=2,
-            code_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 5.0, 5.0],
+            code_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
             point_cloud_range=[0, -20, -4, 120, 20, 4])),
     test_cfg=dict(
         pts=dict(
@@ -408,7 +408,7 @@ model = dict(
             post_max_size=83,
             nms_thr=0.2,
             pc_range=[0, -20])))
-optimizer = dict(type='AdamW', lr=0.0001, weight_decay=0.01)
+optimizer = dict(type='AdamW', lr=1e-05, weight_decay=0.01)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 lr_config = dict(
     policy='cyclic',
@@ -428,7 +428,7 @@ log_config = dict(
            dict(type='TensorboardLoggerHook')])
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/centerpoint_01voxel_second_secfpn_4x8_cyclic_20e_zc'
+work_dir = './work_dirs/centerpoint_01voxel_second_secfpn_4x8_cyclic_20e_zc_w1_ep120_task_weight_7k_rect'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]
