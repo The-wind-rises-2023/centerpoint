@@ -86,7 +86,7 @@ train_pipeline = [
         use_dim=4,
         file_client_args=file_client_args),
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
-    dict(type='ObjectSample', db_sampler=db_sampler),
+    #dict(type='ObjectSample', db_sampler=db_sampler),
     # 旋转和缩放数据增强, rot_range 是旋转角度范围，scale_ratio_range 是scale 的范围, translation_std 是平移的std
     dict(
         type='GlobalRotScaleTrans',

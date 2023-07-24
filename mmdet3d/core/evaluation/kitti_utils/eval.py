@@ -669,6 +669,19 @@ def eval_class_zc(gt_annos,
     recall = np.zeros(
         [num_class, N_SAMPLE_PTS])
 
+
+    merge_result_pts_num = 8
+    # 0.1 0.2 0.3, 0.4 0.5 0.6 0.7 0.8 score_thresh 对应中间结果
+    all_tps = np.zeros([num_class, merge_result_pts_num])
+    all_fns = np.zeros([num_class, merge_result_pts_num])
+    all_fps = np.zeros([num_class, merge_result_pts_num])
+
+    merge_precision = np.zeros([merge_result_pts_num] * len(current_classes))
+    merge_recall = np.zeros([merge_result_pts_num] * len(current_classes))
+
+    recall_badcase = set()
+    precision_badcase = set()
+
     for m, current_class in enumerate(current_classes):
         # 不需要进行difficultys的循环，difficultys 只用来索引iou阈值
         #for idx_l, difficulty in enumerate(difficultys):
@@ -681,9 +694,9 @@ def eval_class_zc(gt_annos,
         #for k, min_overlap in enumerate(min_overlaps[:, 0, m]):
         thresholdss = []
 
-        all_tps = []
-        all_fns = []
-        all_fps = []
+        tps = []
+        fns = []
+        fps = []
 
         for i in range(len(gt_annos)):
             # TODO 计算tp、fn 等匹配条件，需要修改实现
@@ -699,22 +712,47 @@ def eval_class_zc(gt_annos,
                 min_overlaps[:,:,current_class].reshape(-1), #
                 thresh_holds=thresh_holds,
                 compute_fp=True)
-            tps, fps, fns = rets
-            all_tps.append(tps)
-            all_fps.append(fps)
-            all_fns.append(fns)
-        all_tps = np.stack(all_tps).sum(axis=0)
-        all_fns = np.stack(all_fns).sum(axis=0)
-        all_fps = np.stack(all_fps).sum(axis=0)
+            rtps, rfps, rfns = rets
+            tps.append(rtps)
+            fps.append(rfps)
+            fns.append(rfns)
+
+        tps = np.stack(tps).sum(axis=0)
+        fns = np.stack(fns).sum(axis=0)
+        fps = np.stack(fps).sum(axis=0)
+
+        # 计算合并precision recall 
+        idxs = [4, 8, 12, 16, 20, 24, 28, 32]
+        all_tps[m] = tps[idxs]
+        all_fns[m] = fns[idxs]
+        all_fps[m] = fps[idxs]
 
         # 计算recall、precision
-        recall[m] = all_tps / (all_tps + all_fns)
-        precision[m] = all_tps / (all_tps + all_fps)
+        recall[m] = tps / (tps + fns)
+        precision[m] = tps / (tps + fps)
+
+    # 计算merge precision、recall,5个类别， 每个类别41个thresh，迪卡尔积 41 ** 5 生成precision 和 recall, 
+    # 结果太多，只保留0.1 0.2 0.3, 0.4 ， 0.5 , 0.6 , 0.7, 0.8 score thresh 迪卡尔积
+
+    # 手动展开，TODO. 
+    for i in range(merge_result_pts_num):
+        for j in range(merge_result_pts_num):
+            for k in range(merge_result_pts_num):
+                for l in range(merge_result_pts_num):
+                    for m in range(merge_result_pts_num):
+                        all_tps_sum = all_tps[0, i] + all_tps[1, j] + all_tps[2, k] + all_tps[3, l] + all_tps[4, m]
+                        all_fns_sum = all_fns[0, i] + all_fns[1, j] + all_fns[2, k] + all_fns[3, l] + all_fns[4, m]
+                        all_fps_sum = all_fps[0, i] + all_fps[1, j] + all_fps[2, k] + all_fps[3, l] + all_fps[4, m]
+
+                        merge_precision[i,j,k,l,m] = all_tps_sum / (all_tps_sum + all_fps_sum)
+                        merge_recall[i,j,k,l,m] = all_tps_sum / (all_tps_sum + all_fns_sum)
 
     ret_dict = {
         'recall': recall,
         'precision': precision,
-        'thresholds': thresh_holds
+        'thresholds': thresh_holds,
+        'merge_recall': merge_recall,
+        'merge_precision': merge_precision
     }
 
     # clean temp variables
@@ -896,6 +934,9 @@ def do_eval_zc(gt_annos,
         result['bev_mAP40'] = get_mAP40(ret['precision'])
         result['precision'] = ret['precision'][:,20]
         result['recall'] = ret['recall'][:,20]
+
+        result['merge_recall'] = ret['merge_recall']
+        result['merge_precision'] = ret['merge_precision']
     
     return result
 
@@ -1041,6 +1082,14 @@ def kitti_eval_zc(gt_annos,
 
     # for k, v in result_eval.items():
     #     result += f'{k}: {v} \n'
+    # result += f"Merged Recall and Precision, \
+    # for every class keep thresh 0.1 0.2 0.3 0.4 0.5, 0.6 0.7 0.8 to get carteesian product .\n \
+    #     Merge recall:  {result_eval['merge_recall']} \n \
+    #         Merge precision:  {result_eval['merge_precision']} \n"
+
+    result_dict['merge_recall'] = result_eval['merge_recall']
+    result_dict['merge_precision']  = result_eval['merge_precision']
+
     for j, curcls in enumerate(current_classes):
         curcls_name = class_to_name[j]
         result += '{} bev_mAP40 : {}, Precision: {}, Recall: {}\n'.format(curcls_name, 

@@ -16,6 +16,7 @@ from .builder import DATASETS
 from .custom_3d import Custom3DDataset
 from .pipelines import Compose
 import json
+from .pipelines import LoadPointsFromFile
 
 
 @DATASETS.register_module()
@@ -165,12 +166,21 @@ class ZCDataset(Custom3DDataset):
                                         'z': float(gt_lidar[5])},
                                     'rotation': {'x': 0, 'y': 0, 'z': float(gt_lidar[6])}},
                                     'obj_type': "GT",
-                                    'obj_id' : '1',
+                                    'obj_id' : '0',
                                     'score': 1.0
                                     }
                     json_objects.append(box_json)
 
             json.dump(json_objects, f)
+
+    def get_points3d(self, index):
+        input_dict = self.get_data_info(index)
+
+        if getattr(self, "loader", None) is None:
+            self.loader = LoadPointsFromFile(coord_type='LIDAR', load_dim=4, use_dim=4, file_client_args=dict(backend='disk')) 
+        result = self.loader(input_dict)
+        return result['points']
+
 
     def evaluate(self,
                  results,
@@ -181,7 +191,9 @@ class ZCDataset(Custom3DDataset):
                  show=False,
                  out_dir=None,
                  pipeline=None,
-                 do_not_eval=False):
+                 do_not_eval=False,
+                 savedata=False,
+                 save_data_with_gt=False,):
         """Evaluation in KITTI protocol.
 
         Args:
@@ -248,10 +260,12 @@ class ZCDataset(Custom3DDataset):
         if tmp_dir is not None:
             tmp_dir.cleanup()
         if show or out_dir:
-            self.show(results, out_dir, show=show, pipeline=pipeline, do_not_eval=do_not_eval)
+            self.show(results, out_dir, show=show, pipeline=pipeline, do_not_eval=do_not_eval,
+                      savedata=savedata, save_data_with_gt=save_data_with_gt)
         return ap_dict
 
-    def show(self, results, out_dir, show=True, pipeline=None, do_not_eval=False):
+    def show(self, results, out_dir, show=True, pipeline=None, do_not_eval=False,
+             savedata=savedata, save_data_with_gt=save_data_with_gt):
         """Results visualization.
 
         Args:
@@ -283,8 +297,6 @@ class ZCDataset(Custom3DDataset):
                 show_gt_bboxes = Box3DMode.convert(gt_bboxes, Box3DMode.LIDAR,
                                                Box3DMode.DEPTH)
             # save data as json
-            savedata=False
-            save_data_with_gt=False
             if savedata:
                 predict_dir = osp.join(out_dir, "predict")
                 mmcv.mkdir_or_exist(predict_dir)

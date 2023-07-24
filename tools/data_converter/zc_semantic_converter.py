@@ -66,6 +66,10 @@ def process_single_data(info_path, pcd_path):
     result = {}
     if info_path:
     	result = process_info(info_path)
+    else:
+        result.update({'annos': {'box_type_3d': 'lidar',
+                      'gt_bboxes_3d': np.empty((0, 7)), 
+                      'gt_names': []}}) 
 
     # process pcd
     save_bin_path = process_pcd(pcd_path)

@@ -887,6 +887,72 @@ class PointShuffle(object):
 
 
 @PIPELINES.register_module()
+class ObjectNumPtFilter(object):
+    """Filter objects by the range.
+
+    Args:
+        point_cloud_range (list[float]): Point cloud range.
+    """
+
+    def __init__(self, min_pt_num_dict=None):
+        self.min_pt_num_dict = min_pt_num_dict
+
+    @staticmethod
+    def get_box_pts_num(points, box):
+        indices = box_np_ops.points_in_rbbox(points[:, :3], box)
+        num_points_in_gt = indices.sum(0)
+        return num_points_in_gt
+
+    def __call__(self, input_dict):
+        """Call function to filter objects by the range.
+
+        Args:
+            input_dict (dict): Result dict from loading pipeline.
+
+        Returns:
+            dict: Results after filtering, 'gt_bboxes_3d', 'gt_labels_3d'
+                keys are updated in the result dict.
+        """
+        if self.min_pt_num_dict is None or 'gt_bboxes_3d' not in input_dict:
+            return input_dict
+
+        assert isinstance(self.min_pt_num_dict, dict)
+
+        gt_bboxes_3d = input_dict['gt_bboxes_3d']
+        gt_labels_3d = input_dict['gt_labels_3d']
+
+        points = input_dict['points']
+
+        new_gt_bboxes_3d = []
+        new_gt_labels_3d = []
+
+        for gt_box, gt_label in zip(gt_bboxes_3d, gt_labels_3d):
+            if gt_label not in self.min_pt_num_dict:
+                new_gt_bboxes_3d.append(gt_box)
+                new_gt_labels_3d.append(gt_label)
+                continue
+
+            num_points_in_gt = get_box_pts_num(points, gt_box.tensor.numpy())
+            
+            if num_points_in_gt < self.min_pt_num_dict[gt_label]:
+                continue
+            
+            new_gt_bboxes_3d.append(gt_box)
+            new_gt_labels_3d.append(gt_label)
+
+
+        input_dict['gt_bboxes_3d'] = new_gt_bboxes_3d
+        input_dict['gt_labels_3d'] = new_gt_labels_3d
+        return input_dict
+
+    def __repr__(self):
+        """str: Return a string that describes the module."""
+        repr_str = self.__class__.__name__
+        repr_str += f'(min_pt_num_dict={self.min_pt_num_dict})'
+        return repr_str
+
+
+@PIPELINES.register_module()
 class ObjectRangeFilter(object):
     """Filter objects by the range.
 

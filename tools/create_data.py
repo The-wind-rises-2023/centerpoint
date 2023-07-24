@@ -250,7 +250,7 @@ def zc_data_prep(
     other_numbers = math.floor(len(info_files) - train_numbers / (len(splits) - 1))
 
     cur_numbers = 0
-    print(f"Start generate {len(splits)} pickle files...")
+    print(f"Start generate {len(splits)} pickle files. {splits}")
     for split in splits:
         if split == 'training':
             numbers = train_numbers
@@ -425,6 +425,7 @@ parser.add_argument(
     required=False,
     help='name of info pkl')
 parser.add_argument('--extra-tag', type=str, default='kitti')
+parser.add_argument('--train-ratio', type=float, default=0.9)
 parser.add_argument(
     '--workers', type=int, default=4, help='number of threads to be used')
 args = parser.parse_args()
@@ -508,7 +509,9 @@ if __name__ == '__main__':
             root_path=args.root_path,
             info_prefix=args.extra_tag,
             out_dir=args.out_dir,
-            workers=args.workers)
+            workers=args.workers,
+            training_ratios = args.train_ratio
+        )
     elif args.dataset == 'zc_dummy':
         zc_data_dummy(
             root_path=args.root_path,

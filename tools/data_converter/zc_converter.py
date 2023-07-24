@@ -74,8 +74,10 @@ def process_single_data(info_path, pcd_path):
 
     # process anno info
     result = process_info(info_path)
-    if not result['annos']['gt_names']:
-        return None
+    
+    # keep empty info
+    #if not result['annos']['gt_names']:
+    #    return None
 
     
     result.update(

@@ -402,6 +402,11 @@ class GTDatabaseCreater:
     def create_single(self, input_dict):
         group_counter = 0
         single_db_infos = dict()
+
+        if len(input_dict['ann_info']['gt_labels_3d']) == 0 or \
+            len(input_dict['ann_info']['gt_names']) == 0:
+            return single_db_infos
+
         example = self.pipeline(input_dict)
         annos = example['ann_info']
         image_idx = example['sample_idx']
@@ -579,6 +584,7 @@ class GTDatabaseCreater:
         elif self.dataset_class_name == 'ZCDataset':
             file_client_args = dict(backend='disk')
             dataset_cfg.update(
+                filter_empty_gt=False, # keep empty gt
                 test_mode=False,
                 #split='training',
                 modality=dict(
