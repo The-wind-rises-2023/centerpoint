@@ -522,6 +522,7 @@ if __name__ == '__main__':
             root_path=args.root_path,
             info_prefix=args.extra_tag,
             out_dir=args.out_dir,
-            workers=args.workers)
+            workers=args.workers, 
+            training_ratios = args.train_ratio)
     else:
         raise NotImplementedError

@@ -83,9 +83,10 @@ def process_single_data(info_path, pcd_path):
 
 def generate_pickle(infos_path, pcds_path, filename, num_workers=8, speed_up=True):
     # for io speed
+    infos = []
     if len(infos_path) == 0:
         for pcd_path in pcds_path:
-            infos = process_single_data([], pcd_path)
+            infos = process_single_data(None, pcd_path)
         mmcv.dump(list(infos), filename)
         return 
 

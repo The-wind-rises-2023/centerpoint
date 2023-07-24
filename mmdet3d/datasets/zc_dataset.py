@@ -265,7 +265,7 @@ class ZCDataset(Custom3DDataset):
         return ap_dict
 
     def show(self, results, out_dir, show=True, pipeline=None, do_not_eval=False,
-             savedata=savedata, save_data_with_gt=save_data_with_gt):
+             savedata=False, save_data_with_gt=False):
         """Results visualization.
 
         Args:
