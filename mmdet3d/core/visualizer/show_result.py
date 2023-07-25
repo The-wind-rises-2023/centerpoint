@@ -139,7 +139,7 @@ def show_result(points,
     if pred_bboxes is not None:
         # bottom center to gravity center
         pred_bboxes[..., 2] += pred_bboxes[..., 5] / 2
-        import ipdb;ipdb.set_trace()
+        
         _write_oriented_bbox(pred_bboxes,
                              osp.join(result_path, f'{filename}_pred.obj'))
 
