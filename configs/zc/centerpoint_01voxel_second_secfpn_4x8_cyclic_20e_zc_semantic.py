@@ -35,8 +35,8 @@ model = dict(
 
 
 dataset_type = 'ZCSemanticDataset'
-#data_root = '/home/jing/Data/data/seg/all_data/'
-data_root = '/home/jing/Data/data/seg/test/'
+data_root = '/home/jing/Data/data/seg/all_data/'
+#data_root = '/home/jing/Data/data/seg/test/'
 #data_root = '/home/jing/Data/data/20221220-lidar-camera/'
 #data_root = '/mnt/c/Users/xing/Downloads/test_pcd_json_20221220/'
 
@@ -201,7 +201,7 @@ data = dict(
     test=dict(pipeline=test_pipeline, classes=class_names,
             ann_file=data_root + 'testing_infos.pkl',
              # do_not_eval=True, #打开则不进行eval，可对原始数据进行推理
-            )
+            ))
 
 evaluation = dict(interval=10, pipeline=eval_pipeline)
 
