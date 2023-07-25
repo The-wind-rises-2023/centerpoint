@@ -126,22 +126,22 @@ def show_result(points,
                              f'{filename}_online.png') if snapshot else None
         vis.show(show_path)
 
-    # if points is not None:
-    #     _write_obj(points, osp.join(result_path, f'{filename}_points.obj'))
+    if points is not None:
+        _write_obj(points, osp.join(result_path, f'{filename}_points.obj'))
 
-    # if gt_bboxes is not None:
-    #     # bottom center to gravity center
-    #     gt_bboxes[..., 2] += gt_bboxes[..., 5] / 2
+    if gt_bboxes is not None:
+        # bottom center to gravity center
+        gt_bboxes[..., 2] += gt_bboxes[..., 5] / 2
 
-    #     _write_oriented_bbox(gt_bboxes,
-    #                          osp.join(result_path, f'{filename}_gt.obj'))
+        _write_oriented_bbox(gt_bboxes,
+                             osp.join(result_path, f'{filename}_gt.obj'))
 
-    # if pred_bboxes is not None:
-    #     # bottom center to gravity center
-    #     pred_bboxes[..., 2] += pred_bboxes[..., 5] / 2
-
-    #     _write_oriented_bbox(pred_bboxes,
-    #                          osp.join(result_path, f'{filename}_pred.obj'))
+    if pred_bboxes is not None:
+        # bottom center to gravity center
+        pred_bboxes[..., 2] += pred_bboxes[..., 5] / 2
+        import ipdb;ipdb.set_trace()
+        _write_oriented_bbox(pred_bboxes,
+                             osp.join(result_path, f'{filename}_pred.obj'))
 
 
 def show_seg_result(points,
