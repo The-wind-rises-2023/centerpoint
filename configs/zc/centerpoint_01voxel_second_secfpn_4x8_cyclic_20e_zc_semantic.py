@@ -28,7 +28,7 @@ model = dict(
     pts_voxel_layer=dict(point_cloud_range=point_cloud_range),
     # model training and testing settings
     # code_weights: 回归各个属性的权重
-    train_cfg=dict(pts=dict(point_cloud_range=point_cloud_range, code_weights=[0, 1, 1, 10.0, 10.0])),
+    train_cfg=dict(pts=dict(point_cloud_range=point_cloud_range, semantic_code_weights=[0, 1, 1, 10.0, 10.0])),
     test_cfg=dict(pts=dict(pc_range=point_cloud_range[:2], 
                   point_cloud_range=point_cloud_range,
                   code_weights=[0, 1,  1, 1.0, 1.0])))
@@ -42,23 +42,6 @@ data_root = '/home/jing/Data/data/seg/all_data/'
 
 file_client_args = dict(backend='disk')
 
-#TODO with this
-db_sampler = dict(
-    data_root=data_root,
-    info_path=data_root + 'gt_dbinfos_train.pkl',
-    rate=1.0,
-    prepare=dict(
-        filter_by_difficulty=[-1],
-    filter_by_min_points=dict(Car=10, Pedestrian=10, Cyclist=10, Truck=10, Train=10)),
-    classes=class_names,
-    sample_groups=dict(Car=5, Pedestrian=5, Cyclist=5, Truck=5, Train=5),
-    points_loader=dict(
-        type='LoadPointsFromFile',
-        coord_type='LIDAR',
-        load_dim=4,
-        use_dim=[0, 1, 2, 3],
-        file_client_args=file_client_args))
-
 # 训练数据预处理相关
 train_pipeline = [
     # 读取数据配置
@@ -68,7 +51,7 @@ train_pipeline = [
         load_dim=5,
         use_dim=5,
         file_client_args=file_client_args),
-    dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
+    #dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
     # dict(type='ObjectSample', db_sampler=db_sampler),
     # 旋转和缩放数据增强, rot_range 是旋转角度范围，scale_ratio_range 是scale 的范围, translation_std 是平移的std
     dict(
@@ -89,7 +72,7 @@ train_pipeline = [
     # 点云point顺序打乱
     dict(type='PointShuffle'),
     dict(type='DefaultFormatBundle3D', class_names=class_names),
-    dict(type='Collect3D', keys=['points', 'gt_bboxes_3d', 'gt_labels_3d'])
+    dict(type='Collect3D', keys=['points'])
 ]
 test_pipeline = [
     dict(

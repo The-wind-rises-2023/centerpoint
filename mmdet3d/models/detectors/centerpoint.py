@@ -51,7 +51,7 @@ class CenterPoint(MVXTwoStageDetector):
         x = self.pts_backbone(x)
         if self.with_pts_neck:
             x = self.pts_neck(x)
-        return x
+        return {'x' : x }
 
     def forward_pts_train(self,
                           pts_feats,
@@ -74,14 +74,14 @@ class CenterPoint(MVXTwoStageDetector):
         Returns:
             dict: Losses of each branch.
         """
-        outs = self.pts_bbox_head(pts_feats)
+        outs = self.pts_bbox_head(pts_feats['x'])
         loss_inputs = [gt_bboxes_3d, gt_labels_3d, outs]
         losses = self.pts_bbox_head.loss(*loss_inputs)
         return losses
 
     def simple_test_pts(self, x, img_metas, rescale=False):
         """Test function of point cloud branch."""
-        outs = self.pts_bbox_head(x)
+        outs = self.pts_bbox_head(x['x'])
         bbox_list = self.pts_bbox_head.get_bboxes(
             outs, img_metas, rescale=rescale)
         bbox_results = [
@@ -116,7 +116,7 @@ class CenterPoint(MVXTwoStageDetector):
         # only support aug_test for one sample
         outs_list = []
         for x, img_meta in zip(feats, img_metas):
-            outs = self.pts_bbox_head(x)
+            outs = self.pts_bbox_head(x['x'])
             # merge augmented outputs before decoding bboxes
             for task_id, out in enumerate(outs):
                 for key in out[0].keys():

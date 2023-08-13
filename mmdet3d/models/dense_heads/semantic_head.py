@@ -45,7 +45,7 @@ class SemanticHead(BaseModule):
         #     weight = torch.from_numpy(weight).view(-1)
         
         if train_cfg:
-            self.weight = train_cfg['code_weights']
+            self.weight = train_cfg['semantic_code_weights']
         self.num_classes = num_classes
         self.seg_score_thr = seg_score_thr
         self.deconv=nn.ConvTranspose2d(in_channels,in_channels,stride=2,kernel_size=2)
@@ -92,8 +92,8 @@ class SemanticHead(BaseModule):
         """
         # todo: add feature name
         # import ipdb;ipdb.set_trace()
-        # seg_preds = self.seg_cls_layer(self.deconv(feat_dict['x']))
-        x1 = self.up1(feat_dict['x'])
+        # seg_preds = self.seg_cls_layer(self.deconv(feat_dict['x'][0]))
+        x1 = self.up1(feat_dict['x'][0])
         x2 = self.up2(x1)
         x3 = self.up3(x2)
         seg_preds = self.maxpool_conv(x3)
@@ -117,7 +117,6 @@ class SemanticHead(BaseModule):
 
                 - loss_seg (torch.Tensor): Segmentation prediction loss.
         """
-        # import ipdb;ipdb.set_trace() 
         gt = seg_targets.long()
         losses = F.nll_loss(torch.log(F.softmax(seg_preds, dim = 1).clamp(min=1e-7)), 
                             gt, torch.tensor(self.weight).to(seg_preds.device))
@@ -126,7 +125,6 @@ class SemanticHead(BaseModule):
 
     @torch.no_grad()
     def predict(self, pred_dict):
-        # import ipdb;ipdb.set_trace()
         prob, label = F.softmax(pred_dict['seg_preds'] * pred_dict['masks'], dim = 1).max(1)
         res_dict = {
             'prob': prob,

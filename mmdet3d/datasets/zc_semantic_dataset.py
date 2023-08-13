@@ -81,6 +81,10 @@ class ZCSemanticDataset(Custom3DDataset):
         self.pcd_limit_range = pcd_limit_range
         self.do_not_eval = do_not_eval
 
+
+    def name(self):
+        return 'ZCSemanticDataset'
+
     def convert_to_kitti_format(self, gts, dets, label2cat):
         if not self.do_not_eval:
             for gt in gts:
@@ -122,6 +126,51 @@ class ZCSemanticDataset(Custom3DDataset):
             dt['bbox'] = np.array([[0,0,200,200] for i in range(len(dt['name']))]) #x1y1x2y2 fake image bbox 
             dt['alpha'] = np.array([0 for i in range(len(dt['name']))]) # do not care and do not use aos
         return gts, dets
+
+    def get_data_info(self, index):
+        """Get data info according to the given index.
+
+        Args:
+            index (int): Index of the sample data to get.
+
+        Returns:
+            dict: Data information that will be passed to the data
+                preprocessing pipelines. It includes the following keys:
+
+                - sample_idx (str): Sample index.
+                - pts_filename (str): Filename of point clouds.
+                - file_name (str): Filename of point clouds.
+                - ann_info (dict): Annotation info.
+        """
+        info = self.data_infos[index]
+        sample_idx = info['sample_idx']
+        pts_filename = osp.join(self.data_root,
+                                info['lidar_points']['lidar_path'])
+
+        input_dict = dict(
+            pts_filename=pts_filename,
+            sample_idx=sample_idx,
+            file_name=pts_filename)
+
+        return input_dict
+
+    def prepare_train_data(self, index):
+        """Training data preparation.
+
+        Args:
+            index (int): Index for accessing the target data.
+
+        Returns:
+            dict: Training data dict of the corresponding index.
+        """
+        input_dict = self.get_data_info(index)
+        if input_dict is None:
+            return None
+        self.pre_pipeline(input_dict)
+        example = self.pipeline(input_dict)
+
+        return example
+
 
     def remove_dontcare(self, ann_info):
         """Remove annotations that do not need to be cared.

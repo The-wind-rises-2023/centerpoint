@@ -119,7 +119,7 @@ class CenterPointSemantic(MVXTwoStageDetector):
 
         if self.with_pts_neck:
             x = self.pts_neck(x)
-        return {'x': x[0], 'seg_gt':seg_pixel_gt, 'masks': masks}
+        return {'x': x, 'seg_gt':seg_pixel_gt, 'masks': masks}
 
     def forward_pts_train(self,
                           pts_feats,

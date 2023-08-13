@@ -76,7 +76,8 @@ def process_single_data(info_path, pcd_path):
 
     result.update({'lidar_points': {'lidar_path': save_bin_path,}, 
             'sample_idx': filename,
-            # 'annos': {},
+            # 'annos': {'box_type_3d': 'lidar',
+            #       'gt_bboxes_3d': [], 'gt_names': []},
             'calib': {},
             'images': {}})
     return result

@@ -24,8 +24,9 @@ def build_dataset(cfg, default_args=None):
     from mmdet3d.datasets.dataset_wrappers import CBGSDataset
     from mmdet.datasets.dataset_wrappers import (ClassBalancedDataset,
                                                  ConcatDataset, RepeatDataset)
+    from .zc_union_dataset import ZCUnionDataset
     if isinstance(cfg, (list, tuple)):
-        dataset = ConcatDataset([build_dataset(c, default_args) for c in cfg])
+        dataset = ZCUnionDataset([build_dataset(c, default_args) for c in cfg])
     elif cfg['type'] == 'ConcatDataset':
         dataset = ConcatDataset(
             [build_dataset(c, default_args) for c in cfg['datasets']],

@@ -1,9 +1,9 @@
-voxel_size = [0.2, 0.2, 0.2]
+voxel_size = [0.1, 0.1, 0.2]
 model = dict(
-    type='CenterPointSemantic',
+    type='CenterPointUnion',
     # max_num_points : voxel 中最多point数, voxel_size 的尺寸（x、y、z), train 和 test 最多的voxel数
     pts_voxel_layer=dict(
-        max_num_points=32, voxel_size=voxel_size, max_voxels=(90000, 120000)),
+        max_num_points=10, voxel_size=voxel_size, max_voxels=(90000, 120000)),
     # num_features: 点的特征维度
     pts_voxel_encoder=dict(type='HardSimpleVFE', num_features=4),
     # sparse conv 编码器, sparse_shape : z y x 顺序，point_cloud_range / voxel_size 计算
@@ -13,7 +13,7 @@ model = dict(
     pts_middle_encoder=dict(
         type='SparseEncoder',
         in_channels=4,
-        sparse_shape=[41, 208, 608],
+        sparse_shape=[41, 400, 1200],
         output_channels=128,
         order=('conv', 'norm', 'act'),
         encoder_channels=((16, 16, 32), (32, 32, 64), (64, 64, 128), (128,
@@ -43,8 +43,37 @@ model = dict(
         norm_cfg=dict(type='BN', eps=1e-3, momentum=0.01),
         upsample_cfg=dict(type='deconv', bias=False),
         use_conv_for_no_stride=True),
-    # head 参数, in_channels 对应上面的out_channels. tasks 是针对不同的任务的输出头，每个task 会输出heatmap 和 回归值, 对应是否有seg cls
+    # head 参数, in_channels 对应上面的out_channels. tasks 是针对不同的任务的输出头，每个task 会输出heatmap 和 回归值, 对应是否有障碍物以及障碍物的位置、尺寸等
     pts_bbox_head=dict(
+        type='CenterHead',
+        in_channels=sum([256, 256]),
+        tasks=[
+            dict(num_class=1, class_names=['car']),
+            dict(num_class=2, class_names=['truck', 'construction_vehicle']),
+            dict(num_class=2, class_names=['bus', 'trailer']),
+            dict(num_class=1, class_names=['barrier']),
+            dict(num_class=2, class_names=['motorcycle', 'bicycle']),
+            dict(num_class=2, class_names=['pedestrian', 'traffic_cone']),
+        ],
+        #common_heads=dict(
+        #    reg=(2, 2), height=(1, 2), dim=(3, 2), rot=(2, 2), vel=(2, 2)),
+        common_heads=dict(
+            reg=(2, 2), height=(1, 2), dim=(3, 2), rot=(2, 2)),
+        share_conv_channel=64,
+        bbox_coder=dict(
+            type='CenterPointBBoxCoder',
+            post_center_range=[-61.2, -61.2, -10.0, 61.2, 61.2, 10.0],
+            max_num=500,
+            score_threshold=0.1,
+            out_size_factor=8,
+            voxel_size=voxel_size[:2],
+            code_size=7),
+        separate_head=dict(
+            type='SeparateHead', init_bias=-2.19, final_kernel=3),
+        loss_cls=dict(type='GaussianFocalLoss', reduction='mean'),
+        loss_bbox=dict(type='L1Loss', reduction='mean', loss_weight=0.25),
+        norm_bbox=True),
+    pts_semantic_head=dict(
         type='SemanticHead',
         in_channels=sum([256, 256]),
         out_channels=[256, 256],
@@ -52,16 +81,19 @@ model = dict(
         seg_score_thr=0.3,
         loss_seg=dict(type='FocalLoss', loss_weight=1)
         ),
+    # model training and testing settings
     train_cfg=dict(
         pts=dict(
-            grid_size=[608, 208, 40],
+            grid_size=[1200, 400, 40],
             voxel_size=voxel_size,
             out_size_factor=8,
             dense_reg=1,
             gaussian_overlap=0.1,
             max_objs=500,
             min_radius=2,
-            code_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])),
+            code_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+            semantic_code_weights=[1.0, 1.0, 1.0, 1.0, 1.0],
+            task='det')),
     test_cfg=dict(
         pts=dict(
             post_center_limit_range=[-61.2, -61.2, -10.0, 61.2, 61.2, 10.0],
@@ -74,5 +106,5 @@ model = dict(
             nms_type='rotate',
             pre_max_size=1000,
             post_max_size=83,
-            nms_thr=0.2))
-    )
+            nms_thr=0.2,
+            task='det')))

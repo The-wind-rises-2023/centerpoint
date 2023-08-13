@@ -16,7 +16,7 @@ def process_info(info_path):
     filename = osp.splitext(osp.basename(info_path))[0]
     info = mmcv.load(info_path)
     # process info
-    gt_bboxes_3d = []
+    gt_bboxes_3d = np.empty((0, 7))
     gt_labels = []
 
     for idx, obj in enumerate(info):

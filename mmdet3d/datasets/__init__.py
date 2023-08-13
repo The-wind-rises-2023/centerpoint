@@ -10,6 +10,7 @@ from .nuscenes_dataset import NuScenesDataset
 from .nuscenes_mono_dataset import NuScenesMonoDataset
 from .zc_dataset import ZCDataset
 from .zc_semantic_dataset import ZCSemanticDataset
+from .zc_union_dataset import ZCUnionDataset
 # yapf: disable
 from .pipelines import (AffineResize, BackgroundPointsFilter, GlobalAlignment,
                         GlobalRotScaleTrans, IndoorPatchPointSample,
@@ -32,7 +33,7 @@ from .utils import get_loading_pipeline
 from .waymo_dataset import WaymoDataset
 
 __all__ = [
-    'ZCDataset', 'ZCSemanticDataset',
+    'ZCDataset', 'ZCSemanticDataset', 'ZCUnionDataset',
     'KittiDataset', 'KittiMonoDataset', 'build_dataloader', 'DATASETS',
     'build_dataset', 'NuScenesDataset', 'NuScenesMonoDataset', 'LyftDataset',
     'ObjectSample', 'RandomFlip3D', 'ObjectNoise', 'GlobalRotScaleTrans',
@@ -41,7 +42,7 @@ __all__ = [
     'NormalizePointsColor', 'IndoorPatchPointSample', 'IndoorPointSample',
     'PointSample', 'LoadAnnotations3D', 'GlobalAlignment', 'SUNRGBDDataset',
     'ScanNetDataset', 'ScanNetSegDataset', 'ScanNetInstanceSegDataset',
-    'SemanticKITTIDataset', 'Custom3DDataset', 'Custom3DSegDataset',
+    'SemanticKITTIDataset', 'Custom3DDataset', 'Custom3DSegDataset', 
     'LoadPointsFromMultiSweeps', 'WaymoDataset', 'BackgroundPointsFilter',
     'VoxelBasedPointSampler', 'get_loading_pipeline', 'RandomDropPointsColor',
     'RandomJitterPoints', 'ObjectNameFilter', 'AffineResize',

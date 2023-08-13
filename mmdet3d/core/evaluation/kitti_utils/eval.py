@@ -929,14 +929,15 @@ def do_eval_zc(gt_annos,
                             difficultys,
                             1,
                             min_overlaps)
-        print(ret)
+        # print(ret)
+
         # TODO 根据返回的ret处理后得到目标pr
         result['bev_mAP40'] = get_mAP40(ret['precision'])
-        result['precision'] = ret['precision'][:,20]
-        result['recall'] = ret['recall'][:,20]
+        result['precision'] = ret['precision'][:,12]   # score = 0.3
+        result['recall'] = ret['recall'][:,12]
 
-        result['merge_recall'] = ret['merge_recall']
-        result['merge_precision'] = ret['merge_precision']
+        result['merge_recall'] = ret['merge_recall'][2][1][2][2][2]  # score = 0.3
+        result['merge_precision'] = ret['merge_precision'][2][1][2][2][2]
     
     return result
 
@@ -1097,6 +1098,7 @@ def kitti_eval_zc(gt_annos,
         result_dict[f'{curcls_name}_bev_mAP40'] = result_eval['bev_mAP40'][j]
         result_dict[f'{curcls_name}_precision'] = result_eval['precision'][j]
         result_dict[f'{curcls_name}_recall'] = result_eval['recall'][j]
+    result += 'All Precision: {}, All Recall: {}\n'.format(result_dict['merge_precision'], result_dict['merge_recall'])
         
     return result,result_dict
 
