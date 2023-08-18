@@ -21,10 +21,10 @@ model = dict(
     pts_voxel_layer=dict(point_cloud_range=point_cloud_range),
     ##TODO: @zxj head
     # model training and testing settings
-    train_cfg=dict(pts=dict(point_cloud_range=point_cloud_range, code_weights=[0, 1, 1, 10.0, 10.0])),
+    train_cfg=dict(pts=dict(point_cloud_range=point_cloud_range, semantic_code_weights=[0, 1, 1, 10.0, 10.0])),
     test_cfg=dict(pts=dict(pc_range=point_cloud_range[:2], 
                   point_cloud_range=point_cloud_range,
-                  code_weights=[0, 1,  1, 1.0, 1.0])))
+                  semantic_code_weights=[0, 1,  1, 1.0, 1.0])))
 
 
 dataset_type = 'ZCSemanticDataset'
