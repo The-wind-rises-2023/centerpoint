@@ -12,31 +12,6 @@ class_names = [
     'Car', 'Pedestrian', 'Cyclist', 'Truck', 'Train'
 ]
 
-
-#    pts_voxel_layer=dict(
-#        max_num_points=32, voxel_size=voxel_size, max_voxels=(90000, 120000)),
-#    pts_voxel_encoder=dict(type='HardSimpleVFE', num_features=4),
-#    pts_middle_encoder=dict(
-#        type='SparseEncoder',
-#        in_channels=4,
-#        sparse_shape=[41, 1024, 1024],
-#        output_channels=128,
-#        order=('conv', 'norm', 'act'),
-#        encoder_channels=((16, 16, 32), (32, 32, 64), (64, 64, 128), (128,
-#                                                                      128)),
-#        encoder_paddings=((0, 0, 1), (0, 0, 1), (0, 0, [0, 1, 1]), (0, 0)),
-#        block_type='basicblock'),
-#    pts_backbone=dict(
-#        type='SECOND',
-#        in_channels=256,
-#        out_channels=[128, 256],
-#        layer_nums=[5, 5],
-#        layer_strides=[1, 2],
-#        norm_cfg=dict(type='BN', eps=1e-3, momentum=0.01),
-#        conv_cfg=dict(type='Conv2d', bias=False)),
-#
-
-
 model = dict(
     pts_voxel_layer=dict(point_cloud_range=point_cloud_range),
     pts_bbox_head=dict(
@@ -58,11 +33,8 @@ model = dict(
     train_cfg=dict(pts=dict(point_cloud_range=point_cloud_range, code_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])),
     test_cfg=dict(pts=dict(pc_range=point_cloud_range[:2], post_center_limit_range=point_cloud_range)))
 
-
 dataset_type = 'ZCDataset'
 data_root = '/home/jing/Data/data/20221220-det-merge/'
-#data_root = '/home/jing/Data/data/20221220-lidar-camera/'
-#data_root = '/mnt/c/Users/xing/Downloads/test_pcd_json_20221220/'
 
 file_client_args = dict(backend='disk')
 
@@ -116,13 +88,6 @@ test_pipeline = [
         load_dim=4,
         use_dim=4,
         file_client_args=file_client_args),
-    #dict(
-    #    type='LoadPointsFromMultiSweeps',
-    #    sweeps_num=9,
-    #    use_dim=[0, 1, 2, 3, 4],
-    #    file_client_args=file_client_args,
-    #    pad_empty_sweeps=True,
-    #    remove_close=True),
     dict(
         type='MultiScaleFlipAug3D',
         img_scale=(1333, 800),
@@ -155,25 +120,12 @@ eval_pipeline = [
         load_dim=4,
         use_dim=4,
         file_client_args=file_client_args),
-    #dict(
-    #    type='LoadPointsFromMultiSweeps',
-    #    sweeps_num=9,
-    #    use_dim=[0, 1, 2, 3, 4],
-    #    file_client_args=file_client_args,
-    #    pad_empty_sweeps=True,
-    #    remove_close=True),
     dict(
     type='MultiScaleFlipAug3D',
     img_scale=(1333, 800),
     pts_scale_ratio=1,
     flip=False,
     transforms=[
-        # dict(
-        #     type='GlobalRotScaleTrans',
-        #     rot_range=[0, 0],
-        #     scale_ratio_range=[1., 1.],
-        #     translation_std=[0, 0, 0]),
-        # dict(type='RandomFlip3D'),
         dict(
             type='PointsRangeFilter', point_cloud_range=point_cloud_range),
         dict(
@@ -183,19 +135,12 @@ eval_pipeline = [
         dict(type='Collect3D', keys=['points'])
     ])
 
-    # dict(
-    #     type='DefaultFormatBundle3D',
-    #     class_names=class_names,
-    #     with_label=False),
-    # dict(type='Collect3D', keys=['points'])
 ]
 
 data = dict(
     samples_per_gpu=8,  # 单张 GPU 上的样本数
     workers_per_gpu=8,  # 每张 GPU 上用于读取数据的进程数
     train=dict(
-        #type='CBGSDataset', # TODO add CBGS
-        #dataset=dict(
         type=dataset_type,
         data_root=data_root,
         ann_file=data_root + 'training_infos.pkl',
@@ -206,7 +151,6 @@ data = dict(
         # we use box_type_3d='LiDAR' in kitti and nuscenes dataset
         # and box_type_3d='Depth' in sunrgbd and scannet dataset.
         box_type_3d='LiDAR'),
-    #),
     val=dict(pipeline=test_pipeline, classes=class_names,
             ann_file=data_root + 'testing_infos.pkl',
              ),

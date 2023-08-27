@@ -35,10 +35,8 @@ model = dict(
 
 
 dataset_type = 'ZCSemanticDataset'
-data_root = '/home/jing/Data/data/seg/all_data/'
-#data_root = '/home/jing/Data/data/seg/test/'
-#data_root = '/home/jing/Data/data/20221220-lidar-camera/'
-#data_root = '/mnt/c/Users/xing/Downloads/test_pcd_json_20221220/'
+#data_root = '/home/jing/Data/data/seg/all_data/'
+data_root = '/home/jing/Data/data/seg/test/'
 
 file_client_args = dict(backend='disk')
 
@@ -51,8 +49,6 @@ train_pipeline = [
         load_dim=5,
         use_dim=5,
         file_client_args=file_client_args),
-    #dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
-    # dict(type='ObjectSample', db_sampler=db_sampler),
     # 旋转和缩放数据增强, rot_range 是旋转角度范围，scale_ratio_range 是scale 的范围, translation_std 是平移的std
     dict(
         type='GlobalRotScaleTrans',
@@ -67,8 +63,6 @@ train_pipeline = [
         flip_ratio_bev_vertical=0.0),
     # 点云范围过滤
     dict(type='PointsRangeFilter', point_cloud_range=point_cloud_range),
-    # dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
-    # dict(type='ObjectNameFilter', classes=class_names),
     # 点云point顺序打乱
     dict(type='PointShuffle'),
     dict(type='DefaultFormatBundle3D', class_names=class_names),
@@ -81,13 +75,6 @@ test_pipeline = [
         load_dim=5,
         use_dim=5,
         file_client_args=file_client_args),
-    #dict(
-    #    type='LoadPointsFromMultiSweeps',
-    #    sweeps_num=9,
-    #    use_dim=[0, 1, 2, 3, 4],
-    #    file_client_args=file_client_args,
-    #    pad_empty_sweeps=True,
-    #    remove_close=True),
     dict(
         type='MultiScaleFlipAug3D',
         img_scale=(1333, 800),
@@ -109,8 +96,6 @@ test_pipeline = [
                 with_label=False),
             dict(type='Collect3D', keys=['points'])
         ]),
-    # dict(type='DefaultFormatBundle3D', class_names=class_names),
-    # dict(type='Collect3D', keys=['points', 'gt_bboxes_3d', 'gt_labels_3d'])
 ]
 # construct a pipeline for data and gt loading in show function
 # please keep its loading function consistent with test_pipeline (e.g. client)
@@ -123,25 +108,12 @@ eval_pipeline = [
         load_dim=5,
         use_dim=5,
         file_client_args=file_client_args),
-    #dict(
-    #    type='LoadPointsFromMultiSweeps',
-    #    sweeps_num=9,
-    #    use_dim=[0, 1, 2, 3, 4],
-    #    file_client_args=file_client_args,
-    #    pad_empty_sweeps=True,
-    #    remove_close=True),
     dict(
     type='MultiScaleFlipAug3D',
     img_scale=(1333, 800),
     pts_scale_ratio=1,
     flip=False,
     transforms=[
-        # dict(
-        #     type='GlobalRotScaleTrans',
-        #     rot_range=[0, 0],
-        #     scale_ratio_range=[1., 1.],
-        #     translation_std=[0, 0, 0]),
-        # dict(type='RandomFlip3D'),
         dict(
             type='PointsRangeFilter', point_cloud_range=point_cloud_range),
         dict(
@@ -151,19 +123,12 @@ eval_pipeline = [
         dict(type='Collect3D', keys=['points'])
     ])
 
-    # dict(
-    #     type='DefaultFormatBundle3D',
-    #     class_names=class_names,
-    #     with_label=False),
-    # dict(type='Collect3D', keys=['points'])
 ]
 
 data = dict(
     samples_per_gpu=4,  # 单张 GPU 上的样本数
     workers_per_gpu=4,  # 每张 GPU 上用于读取数据的进程数
     train=dict(
-        #type='CBGSDataset', # TODO add CBGS
-        #dataset=dict(
         type=dataset_type,
         data_root=data_root,
         # 训练数据文件路径
@@ -175,7 +140,6 @@ data = dict(
         # we use box_type_3d='LiDAR' in kitti and nuscenes dataset
         # and box_type_3d='Depth' in sunrgbd and scannet dataset.
         box_type_3d='LiDAR'),
-    #),
     # val 数据文件路径
     val=dict(pipeline=test_pipeline, classes=class_names,
             ann_file=data_root + 'testing_infos.pkl',
@@ -183,7 +147,7 @@ data = dict(
     # test 数据文件路径
     test=dict(pipeline=test_pipeline, classes=class_names,
             ann_file=data_root + 'testing_infos.pkl',
-             # do_not_eval=True, #打开则不进行eval，可对原始数据进行推理
+            do_not_eval=True, #打开则不进行eval，可对原始数据进行推理
             ))
 
 evaluation = dict(interval=10, pipeline=eval_pipeline)

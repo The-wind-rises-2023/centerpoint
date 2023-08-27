@@ -48,35 +48,35 @@ class SemanticHead(BaseModule):
             self.weight = train_cfg['semantic_code_weights']
         self.num_classes = num_classes
         self.seg_score_thr = seg_score_thr
-        self.deconv=nn.ConvTranspose2d(in_channels,in_channels,stride=2,kernel_size=2)
-        self.seg_cls_layer = nn.Sequential(
-            nn.Conv2d(in_channels, in_channels//4, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(in_channels//4),
-            nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(in_channels//4,in_channels//4,stride=2,kernel_size=2),
-            nn.Conv2d(in_channels//4, in_channels//16, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(in_channels//16),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels//16, num_classes, kernel_size=3, padding=1, bias=True)
-        )
-        self.up1 = nn.Sequential(
-            nn.ConvTranspose2d(in_channels,in_channels,stride=2,kernel_size=2),
-            nn.Conv2d(in_channels, in_channels//4, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(in_channels//4),
-            nn.ReLU(inplace=True))
-        self.up2 = nn.Sequential(
-            nn.ConvTranspose2d(in_channels//4,in_channels//4,stride=2,kernel_size=2),
-            nn.Conv2d(in_channels//4, in_channels//8, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(in_channels//8),
-            nn.ReLU(inplace=True))
-        self.up3 = nn.Sequential(
-            nn.ConvTranspose2d(in_channels//8,in_channels//8,stride=2,kernel_size=2),
-            nn.Conv2d(in_channels//8, in_channels//16, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(in_channels//16),
-            nn.ReLU(inplace=True))
-        self.maxpool_conv = nn.Sequential(
-            nn.MaxPool2d(kernel_size=3, stride=1,padding=1),
-            nn.Conv2d(in_channels//16, num_classes, kernel_size=3, padding=1, bias=True))
+        if tasks is 'pp':
+            self.seg_cls_layer = nn.Sequential(
+                nn.ConvTranspose2d(in_channels,in_channels,stride=2,kernel_size=2),
+                nn.Conv2d(in_channels, in_channels//4, kernel_size=3, padding=1, bias=False),
+                nn.BatchNorm2d(in_channels//4),
+                nn.ReLU(inplace=True),
+                nn.ConvTranspose2d(in_channels//4,in_channels//4,stride=2,kernel_size=2),
+                nn.Conv2d(in_channels//4, in_channels//8, kernel_size=3, padding=1, bias=False),
+                nn.BatchNorm2d(in_channels//8),
+                nn.ReLU(inplace=True),
+                nn.ConvTranspose2d(in_channels//8,in_channels//8,stride=2,kernel_size=2),
+                nn.Conv2d(in_channels//8, in_channels//16, kernel_size=3, padding=1, bias=False),
+                nn.BatchNorm2d(in_channels//16),
+                nn.ReLU(inplace=True),
+                nn.MaxPool2d(kernel_size=3, stride=1,padding=1),
+                nn.Conv2d(in_channels//16, num_classes, kernel_size=3, padding=1, bias=True)
+                )
+        else: 
+            self.seg_cls_layer = nn.Sequential(
+                nn.ConvTranspose2d(in_channels,in_channels,stride=2,kernel_size=2),
+                nn.Conv2d(in_channels, in_channels//4, kernel_size=3, padding=1, bias=False),
+                nn.BatchNorm2d(in_channels//4),
+                nn.ReLU(inplace=True),
+                nn.ConvTranspose2d(in_channels//4,in_channels//4,stride=2,kernel_size=2),
+                nn.Conv2d(in_channels//4, in_channels//16, kernel_size=3, padding=1, bias=False),
+                nn.BatchNorm2d(in_channels//16),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(in_channels//16, num_classes, kernel_size=3, padding=1, bias=True)
+            )
 
         self.loss_seg = build_loss(loss_seg)
 
@@ -91,14 +91,13 @@ class SemanticHead(BaseModule):
                 scores.
         """
         # todo: add feature name
-        # import ipdb;ipdb.set_trace()
-        # seg_preds = self.seg_cls_layer(self.deconv(feat_dict['x'][0]))
-        x1 = self.up1(feat_dict['x'][0])
-        x2 = self.up2(x1)
-        x3 = self.up3(x2)
-        seg_preds = self.maxpool_conv(x3)
-        feat_dict.update({'seg_preds': seg_preds})
-        return feat_dict
+        if type(feat_dict) is dict:
+            seg_preds = self.seg_cls_layer(feat_dict['x'][0])
+            feat_dict.update({'seg_preds': seg_preds})
+            return feat_dict
+        else:
+            seg_preds = self.seg_cls_layer(feat_dict[0])
+            return {'seg_preds': seg_preds}
 
     def loss(self, seg_preds, seg_targets):
         """Calculate pixel-wise segmentation losses.

@@ -46,6 +46,7 @@ model = dict(
     # head 参数, in_channels 对应上面的out_channels. tasks 是针对不同的任务的输出头，每个task 会输出heatmap 和 回归值, 对应是否有seg cls
     pts_bbox_head=dict(
         type='SemanticHead',
+        tasks='pp',
         in_channels=sum([256, 256]),
         out_channels=[256, 256],
         num_classes=5,

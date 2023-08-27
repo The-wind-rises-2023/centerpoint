@@ -18,6 +18,7 @@ from .pipelines import Compose
 import json
 from .pipelines import LoadPointsFromFile
 
+from mmdet3d.core.bbox import box_np_ops, points_cam2img
 
 @DATASETS.register_module()
 class ZCDataset(Custom3DDataset):
@@ -75,6 +76,9 @@ class ZCDataset(Custom3DDataset):
 
         assert self.modality is not None
         self.pcd_limit_range = pcd_limit_range
+    
+    def name(self):
+        return 'ZCDataset'
 
     def convert_to_kitti_format(self, gts, dets, label2cat):
         for gt in gts:
@@ -157,7 +161,6 @@ class ZCDataset(Custom3DDataset):
                                     }
                 json_objects.append(box_json)
             if with_gt:
-                # import ipdb;ipdb.set_trace()
                 for idx in range(len(gt_data)):
                     gt_lidar = gt_data[idx]
                     box_json = {'psr': {'position': {'x': float(gt_lidar[0]), 'y': float(gt_lidar[1]),
@@ -166,7 +169,7 @@ class ZCDataset(Custom3DDataset):
                                         'z': float(gt_lidar[5])},
                                     'rotation': {'x': 0, 'y': 0, 'z': float(gt_lidar[6])}},
                                     'obj_type': "GT",
-                                    'obj_id' : '0',
+                                    'obj_id' : '1',
                                     'score': 1.0
                                     }
                     json_objects.append(box_json)
@@ -192,8 +195,9 @@ class ZCDataset(Custom3DDataset):
                  out_dir=None,
                  pipeline=None,
                  do_not_eval=False,
-                 savedata=False,
-                 save_data_with_gt=False,):
+                 save_badcase_only=False,
+                 min_gt_points_dict=None,
+                 ):
         """Evaluation in KITTI protocol.
 
         Args:
@@ -218,6 +222,45 @@ class ZCDataset(Custom3DDataset):
         Returns:
             dict[str, float]: Results of each evaluation metric.
         """
+        # filter boxes by min pts number
+        if min_gt_points_dict is not None:
+            assert len(results) == len(self), print(f"{len(results)} != {len(self)}", file=sys.stderr, flush=True)
+            if not isinstance(min_gt_points_dict, dict):
+                min_gt_points_dict = {p.split('=')[0]:int(p.split('=')[1]) for p in min_gt_points_dict}
+
+            label2cat = {i: cat_id for i, cat_id in enumerate(self.CLASSES)}
+            for ridx, r in enumerate(results):
+                points = self.get_points3d(ridx)
+                boxes = r['pts_bbox']['boxes_3d']
+                labels = r['pts_bbox']['labels_3d']
+                scores = r['pts_bbox']['scores_3d']
+
+                new_boxes = []
+                new_labels = []
+                new_scores = []
+
+                box_type = type(r['pts_bbox']['boxes_3d'])
+
+                for idx, (box, label, score) in enumerate(zip(boxes, labels, scores)):
+                    label_name = label2cat[label.item()]
+                    if label_name not in min_gt_points_dict:
+                        new_boxes.append(box)
+                        new_labels.append(label)
+                        new_scores.append(score)
+                        continue
+                    indices = box_np_ops.points_in_rbbox(points[:, :3].tensor.numpy(), box.reshape(-1,7).numpy())
+                    num_points_in_gt = indices.sum(0)
+                    if num_points_in_gt < int(min_gt_points_dict[label_name]):
+                        continue
+                    new_boxes.append(box)
+                    new_labels.append(label)
+                    new_scores.append(score)
+                
+                results[ridx]['pts_bbox']['boxes_3d'] = torch.stack(new_boxes) if len(new_boxes) > 0 else torch.tensor([],dtype=torch.float32)
+                results[ridx]['pts_bbox']['boxes_3d'] = box_type(results[ridx]['pts_bbox']['boxes_3d'])
+                results[ridx]['pts_bbox']['labels_3d'] = torch.stack(new_labels) if len(new_labels) > 0 else torch.tensor([],dtype=torch.int32)
+                results[ridx]['pts_bbox']['scores_3d'] = torch.stack(new_scores) if len(new_scores) > 0 else torch.tensor([],dtype=torch.float32)
+                    
         result_files, tmp_dir = self.format_results(results, pklfile_prefix)
 
         # for centerpoint

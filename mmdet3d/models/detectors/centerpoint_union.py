@@ -130,7 +130,6 @@ class CenterPointUnion(BaseUnionDetector):
         Returns:
             dict: Losses of different branches.
         """
-        # import ipdb;ipdb.set_trace()
         img_feats, pts_feats = self.extract_feat(
             points, img=img, img_metas=img_metas)
         losses = dict()
@@ -317,12 +316,18 @@ class CenterPointUnion(BaseUnionDetector):
         outs = self.pts_bbox_head(x['x'])
         bbox_list = self.pts_bbox_head.get_bboxes(
             outs, img_metas, rescale=rescale)
-        bbox_results = [
-            bbox3d2result(bboxes, scores, labels)
-            for bboxes, scores, labels in bbox_list
-        ]
+
+        if torch.onnx.is_in_onnx_export():
+            bboxes, scores, labels = bbox_list
+            bbox_results = [
+                bbox3d2result(bboxes, scores, labels)
+            ]
+        else:
+            bbox_results = [
+                bbox3d2result(bboxes, scores, labels)
+                for bboxes, scores, labels in bbox_list
+            ]
         # seg test
-        # import ipdb;ipdb.set_trace()
         if self.cfg['task'] == 'seg':
             outs_semantic = self.pts_semantic_head(x)
             seg_results = self.pts_semantic_head.predict(outs_semantic)
@@ -436,6 +441,29 @@ class CenterPointUnion(BaseUnionDetector):
     def aug_test(self, points, img_metas, imgs=None, rescale=False):
         """Test function with augmentaiton."""
         return self.simple_test(points, img_metas)
+
+    def forward_onnx(self, voxels, num_points, coors, **kwargs):
+        """Not total same with mmdeploy"""
+        # skip voxelize as same with mmdeploy
+        #voxels, num_points, coors = self.voxelize(pts)
+
+        img_feats = None
+        img_metas = kwargs['img_metas']
+        voxels = voxels[...,:4]
+        voxel_features = self.pts_voxel_encoder(voxels, num_points, coors)
+        batch_size = coors[-1, 0] + 1
+        x = self.pts_middle_encoder(voxel_features, coors, batch_size)
+        x = self.pts_backbone(x)
+        if self.with_pts_neck:
+            x = self.pts_neck(x)
+        
+        outs = self.pts_bbox_head(x) 
+        bbox_list = self.pts_bbox_head.get_bboxes(
+            outs, img_metas)
+        outs_semantic = self.pts_semantic_head(x)
+
+        return bbox_list,outs_semantic 
+
     
     def forward_test(self, points, img_metas, img=None, **kwargs):
         """
