@@ -25,7 +25,8 @@ target_include_directories(${PROJECT_NAME}_obj PRIVATE ${TENSORRT_INCLUDE_DIR})
 target_include_directories(${PROJECT_NAME}_obj PRIVATE ${CUDNN_DIR}/include)
 target_include_directories(${PROJECT_NAME}_obj PRIVATE ${CUB_ROOT_DIR})
 target_link_libraries(${PROJECT_NAME}_obj
-        PUBLIC ${TENSORRT_LIBS} cublas cudnn)
+	PUBLIC ${TENSORRT_LIBS} cublas cudnn cudart cublasLt)
+
 mmdeploy_export(${PROJECT_NAME}_obj)
 
 # Build module library. It is used to convert onnx model to tensorrt engine

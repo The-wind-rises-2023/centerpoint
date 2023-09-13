@@ -236,7 +236,6 @@ def from_onnx(onnx_model: Union[str, onnx.ModelProto],
             builder.int8_calibrator = config.int8_calibrator
 
     # create engine
-    import ipdb;ipdb.set_trace()
     engine = builder.build_engine(network, config)
 
     assert engine is not None, 'Failed to create TensorRT engine'

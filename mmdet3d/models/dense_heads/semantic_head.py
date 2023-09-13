@@ -48,7 +48,7 @@ class SemanticHead(BaseModule):
             self.weight = train_cfg['semantic_code_weights']
         self.num_classes = num_classes
         self.seg_score_thr = seg_score_thr
-        if tasks is 'pp':
+        if tasks == 'pp':
             self.seg_cls_layer = nn.Sequential(
                 nn.ConvTranspose2d(in_channels,in_channels,stride=2,kernel_size=2),
                 nn.Conv2d(in_channels, in_channels//4, kernel_size=3, padding=1, bias=False),

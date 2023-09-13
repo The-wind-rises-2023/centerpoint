@@ -30,7 +30,7 @@ class PointPillarsScatter(nn.Module):
         """Forward function to scatter features."""
         # TODO: rewrite the function in a batch manner
         # no need to deal with different batch cases
-        if batch_size is not None:
+        if batch_size is not None and not torch.onnx.is_in_onnx_export():
             return self.forward_batch(voxel_features, coors, batch_size)
         else:
             return self.forward_single(voxel_features, coors)
@@ -54,6 +54,9 @@ class PointPillarsScatter(nn.Module):
         indices = indices.long()
         voxels = voxel_features.t()
         # Now scatter the blob back to the canvas.
+        if torch.onnx.is_in_onnx_export():
+            voxels = voxels.view(self.in_channels, -1)
+
         canvas[:, indices] = voxels
         # Undo the column stacking to final 4-dim tensor
         canvas = canvas.view(1, self.in_channels, self.ny, self.nx)
