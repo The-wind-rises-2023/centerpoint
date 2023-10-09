@@ -50,7 +50,7 @@ class SemanticHead(BaseModule):
         self.seg_score_thr = seg_score_thr
         if tasks == 'pp':
             self.seg_cls_layer = nn.Sequential(
-                nn.ConvTranspose2d(in_channels,in_channels,stride=2,kernel_size=2),
+                # nn.ConvTranspose2d(in_channels,in_channels,stride=2,kernel_size=2),
                 nn.Conv2d(in_channels, in_channels//4, kernel_size=3, padding=1, bias=False),
                 nn.BatchNorm2d(in_channels//4),
                 nn.ReLU(inplace=True),
@@ -67,15 +67,16 @@ class SemanticHead(BaseModule):
                 )
         else: 
             self.seg_cls_layer = nn.Sequential(
-                nn.ConvTranspose2d(in_channels,in_channels,stride=2,kernel_size=2),
+                # nn.ConvTranspose2d(in_channels,in_channels,stride=2,kernel_size=2),
                 nn.Conv2d(in_channels, in_channels//4, kernel_size=3, padding=1, bias=False),
                 nn.BatchNorm2d(in_channels//4),
                 nn.ReLU(inplace=True),
                 nn.ConvTranspose2d(in_channels//4,in_channels//4,stride=2,kernel_size=2),
-                nn.Conv2d(in_channels//4, in_channels//16, kernel_size=3, padding=1, bias=False),
-                nn.BatchNorm2d(in_channels//16),
+                nn.Conv2d(in_channels//4, in_channels//8, kernel_size=3, padding=1, bias=False),
+                nn.BatchNorm2d(in_channels//8),
                 nn.ReLU(inplace=True),
-                nn.Conv2d(in_channels//16, num_classes, kernel_size=3, padding=1, bias=True)
+                nn.ConvTranspose2d(in_channels//8,in_channels//8,stride=2,kernel_size=2),
+                nn.Conv2d(in_channels//8, num_classes, kernel_size=3, padding=1, bias=True)
             )
 
         self.loss_seg = build_loss(loss_seg)

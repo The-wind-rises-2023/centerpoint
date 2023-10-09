@@ -59,7 +59,9 @@ model = dict(
 )
 
 dataset_type = 'ZCUnionDataset'
-data_root = '/home/jing/Data/data/20221220-det/' #'/home/jing/Data/data/20230617-det-merge/'
+data_root = '/home/jing/Data/data/20230617-det-merge/'
+#data_root = '/home/jing/Data/data/20221220-det/' #'/home/jing/Data/data/20230617-det-merge/'
+#data_root_seg = '/home/jing/Data/data/20230617-det-merge/'
 data_root_seg = '/home/jing/Data/data/seg/tony_all_data/' #'/home/jing/Data/data/seg/all_data/'
 dataset_type_det = 'ZCDataset'
 dataset_type_seg = 'ZCSemanticDataset'
@@ -377,7 +379,7 @@ data = dict(
     workers_per_gpu=4,  # 每张 GPU 上用于读取数据的进程数
     type=dataset_type,
     train=[data_det_train, data_seg_train], 
-    val=data_det_val,           # 目前只支持验证集为检测
+    val=data_seg_val,           # 目前只支持验证集为检测
     test=data_seg_test       
     )
 
