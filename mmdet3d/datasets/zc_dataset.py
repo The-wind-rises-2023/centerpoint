@@ -84,6 +84,8 @@ class ZCDataset(Custom3DDataset):
         for gt in gts:
             gt['name'] = [
                 'DontCare' if n not in self.CLASSES else n for n in gt['gt_names']]
+            mask = [True if n != 'DontCare' else False for n in gt['name']]
+            gt['name'] = [n for n in gt['name'] if n != 'DontCare']
             gt['occluded'] = np.array([0 for i in range(len(gt['name']))])
             gt['truncated'] = np.array([0 for i in range(len(gt['name']))])
             gt['bbox'] = np.array([[0,0,200,200] for i in range(len(gt['name']))]).reshape(-1,4) #x1y1x2y2 fake image box
@@ -93,6 +95,7 @@ class ZCDataset(Custom3DDataset):
 
             # TODO check clock wise, rotation_y ?
             #3d box in camera axies
+            gt['gt_bboxes_3d'] = gt['gt_bboxes_3d'][mask,...]
             cam_box =  LiDARInstance3DBoxes(gt['gt_bboxes_3d']).convert_to(Box3DMode.CAM)
             gt['location'] = cam_box.bottom_center.numpy()
             gt['dimensions'] = cam_box.dims.numpy()
@@ -197,6 +200,8 @@ class ZCDataset(Custom3DDataset):
                  do_not_eval=False,
                  save_badcase_only=False,
                  min_gt_points_dict=None,
+                 savedata=False,
+                 save_data_with_gt=False
                  ):
         """Evaluation in KITTI protocol.
 

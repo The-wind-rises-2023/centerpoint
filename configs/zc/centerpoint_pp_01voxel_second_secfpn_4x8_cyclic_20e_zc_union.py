@@ -59,10 +59,10 @@ model = dict(
 )
 
 dataset_type = 'ZCUnionDataset'
-data_root = '/home/jing/Data/data/20230617-det-merge/'
+data_root = '/media/work/data21/20230617-det-merge_2/20230617-det-merge/'
 #data_root = '/home/jing/Data/data/20221220-det/' #'/home/jing/Data/data/20230617-det-merge/'
 #data_root_seg = '/home/jing/Data/data/20230617-det-merge/'
-data_root_seg = '/home/jing/Data/data/seg/tony_all_data/' #'/home/jing/Data/data/seg/all_data/'
+data_root_seg = '/media/work/data21/seg_data_0804/' #'/home/jing/Data/data/seg/all_data/'
 dataset_type_det = 'ZCDataset'
 dataset_type_seg = 'ZCSemanticDataset'
 

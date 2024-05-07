@@ -2,6 +2,7 @@
 import copy
 
 import torch
+import math
 from mmcv.cnn import ConvModule, build_conv_layer
 from mmcv.runner import BaseModule, force_fp32
 from torch import nn
@@ -333,6 +334,7 @@ class CenterHead(BaseModule):
             self.task_heads.append(builder.build_head(separate_head))
 
         self.with_velocity = 'vel' in common_heads.keys()
+        self.with_ori_cls = False
 
     def forward_single(self, x):
         """Forward function for CenterPoint.
@@ -497,7 +499,7 @@ class CenterHead(BaseModule):
                 (len(self.class_names[idx]), feature_map_size[1],
                  feature_map_size[0]))
 
-            if self.with_velocity:
+            if self.with_velocity or self.with_ori_cls:
                 anno_box = gt_bboxes_3d.new_zeros((max_objs, 10),
                                                   dtype=torch.float32)
             else:
@@ -573,6 +575,31 @@ class CenterHead(BaseModule):
                             vx.unsqueeze(0),
                             vy.unsqueeze(0)
                         ])
+                    elif self.with_ori_cls:
+                        #vx, vy = task_boxes[idx][k][7:]
+                        theta = task_boxes[idx][k][6].item()
+                        norm_theta = math.atan2(math.sin(theta), math.cos(theta))
+                        # front and back
+                        degree_gap = 0.18
+                        front_back, left_right = -1, -1 # ignore flag
+                        if norm_theta < (math.pi * 0.5 - degree_gap) or norm_theta > (-math.pi * 0.5 + degree_gap):
+                            front_back = 1
+                        elif norm_theta > (math.pi * 0.5 + degree_gap) or norm_theta < (-math.pi * 0.5 - degree_gap):
+                            front_back = 0
+                        # left and right
+                        if norm_theta > degree_gap or norm_theta < math.pi - degree_gap:
+                            left_right = 1
+                        elif norm_theta < -degree_gap or norm_theta > -math.pi + degree_gap:
+                            left_right = 0
+
+                        anno_box[new_idx] = torch.cat([
+                            center - torch.tensor([x, y], device=device),
+                            z.unsqueeze(0), box_dim,
+                            torch.sin(rot).unsqueeze(0),
+                            torch.cos(rot).unsqueeze(0),
+                            torch.tensor(front_back, device=device).unsqueeze(0),
+                            torch.tensor(left_right, device=device).unsqueeze(0)
+                        ])
                     else:
                         anno_box[new_idx] = torch.cat([
                             center - torch.tensor([x, y], device=device),
@@ -618,6 +645,12 @@ class CenterHead(BaseModule):
                     (preds_dict[0]['reg'], preds_dict[0]['height'],
                      preds_dict[0]['dim'], preds_dict[0]['rot'],
                      preds_dict[0]['vel']),
+                    dim=1)
+            elif self.with_ori_cls:
+                preds_dict[0]['anno_box'] = torch.cat(
+                    (preds_dict[0]['reg'], preds_dict[0]['height'],
+                     preds_dict[0]['dim'], preds_dict[0]['rot'],
+                     preds_dict[0]['ori_cls']),
                     dim=1)
             else:
                 preds_dict[0]['anno_box'] = torch.cat(

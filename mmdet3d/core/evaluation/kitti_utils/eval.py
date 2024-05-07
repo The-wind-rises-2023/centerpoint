@@ -4,6 +4,7 @@ import io as sysio
 
 import numba
 import numpy as np
+import os
 
 
 @numba.jit
@@ -185,6 +186,7 @@ def compute_statistics_jit_zc(overlaps,
     tps = []
     fns = []
     fps = []
+    heading_diffs =[]
 
     for thresh in thresh_holds:
         assigned_detection = [False] * det_size
@@ -195,6 +197,7 @@ def compute_statistics_jit_zc(overlaps,
                     ignored_threshold[i] = True
         NO_DETECTION = -10000000
         tp, fp, fn, similarity = 0, 0, 0, 0
+        heading_diff = []
 
         thresh_idx = 0
 
@@ -248,6 +251,9 @@ def compute_statistics_jit_zc(overlaps,
                   and (ignored_gt[i] == 1 or ignored_det[det_idx] == 1)): # 1 是可忽略的，不计入
                 assigned_detection[det_idx] = True
             elif valid_detection != NO_DETECTION:
+                yaw_diff = gt_datas[i, -1] - dt_datas[det_idx, -1]  
+                yaw_diff_normalized =  (yaw_diff + np.pi) % (2 * np.pi) - np.pi 
+                heading_diff.append(np.abs(yaw_diff_normalized) * (180.0 / np.pi))
                 tp += 1
                 thresh_idx += 1
                 assigned_detection[det_idx] = True
@@ -256,10 +262,11 @@ def compute_statistics_jit_zc(overlaps,
                 if (not (assigned_detection[i] or ignored_det[i] == -1
                          or ignored_det[i] == 1 or ignored_threshold[i])):
                     fp += 1
+        heading_diffs.append(np.array(heading_diff))
         tps.append(tp)
         fps.append(fp)
         fns.append(fn)
-    return np.array(tps), np.array(fps), np.array(fns)
+    return np.array(tps), np.array(fps), np.array(fns), np.array(heading_diffs)
     #return tp, fp, fn, similarity, thresholds[:thresh_idx]
 
 
@@ -541,10 +548,10 @@ def _prepare_data_zc(gt_annos, dt_annos, current_class, difficulty):
         dontcares.append(dc_bboxes)
         total_num_valid_gt += num_valid_gt
         gt_datas = np.concatenate(
-            [gt_annos[i]['bbox'], gt_annos[i]['alpha'][..., np.newaxis]], 1)
+            [gt_annos[i]['bbox'], gt_annos[i]['alpha'][..., np.newaxis], gt_annos[i]['rotation_y'][..., np.newaxis]], 1)
         dt_datas = np.concatenate([
             dt_annos[i]['bbox'], dt_annos[i]['alpha'][..., np.newaxis],
-            dt_annos[i]['score'][..., np.newaxis]
+            dt_annos[i]['score'][..., np.newaxis],dt_annos[i]['rotation_y'][..., np.newaxis]
         ], 1)
         gt_datas_list.append(gt_datas)
         dt_datas_list.append(dt_datas)
@@ -615,6 +622,21 @@ def get_iou_thre_by_gt_range(gt_annos, current_class):
         iou_thresh.append(ious)
 
 
+def count_angles(angles):
+    # 创建一个字典来存储每个区间的计数
+    counts = {i: 0 for i in range(0, 181, 5)}
+    # 遍历列表中的每个元素
+    for angle in angles:
+        # 找出它属于哪个区间
+        interval = (angle // 5) * 5
+
+        # 在字典中对应的区间计数加一
+        counts[interval] += 1
+    results = dict()
+    for k in sorted(counts.keys()):
+        results[f'{k*5}-{min(k*5 + 5, 180)}'] = counts[k]
+    return results
+
 def eval_class_zc(gt_annos,
                dt_annos,
                current_classes,
@@ -679,6 +701,7 @@ def eval_class_zc(gt_annos,
     merge_precision = np.zeros([merge_result_pts_num] * len(current_classes))
     merge_recall = np.zeros([merge_result_pts_num] * len(current_classes))
 
+    merge_heading_errors = [None] * len(current_classes)
     recall_badcase = set()
     precision_badcase = set()
 
@@ -697,6 +720,9 @@ def eval_class_zc(gt_annos,
         tps = []
         fns = []
         fps = []
+        heading_errors = []
+        for t in range(len(thresh_holds)): 
+            heading_errors.append([])
 
         for i in range(len(gt_annos)):
             # TODO 计算tp、fn 等匹配条件，需要修改实现
@@ -712,10 +738,12 @@ def eval_class_zc(gt_annos,
                 min_overlaps[:,:,current_class].reshape(-1), #
                 thresh_holds=thresh_holds,
                 compute_fp=True)
-            rtps, rfps, rfns = rets
+            rtps, rfps, rfns, rheading_errors = rets
             tps.append(rtps)
             fps.append(rfps)
             fns.append(rfns)
+            for he in range(rheading_errors.shape[0]):
+                heading_errors[he].extend(rheading_errors[he])
 
         tps = np.stack(tps).sum(axis=0)
         fns = np.stack(fns).sum(axis=0)
@@ -727,6 +755,7 @@ def eval_class_zc(gt_annos,
         all_fns[m] = fns[idxs]
         all_fps[m] = fps[idxs]
 
+        merge_heading_errors[m] = {f'score_thresh: {thresh_holds[idx]}' : count_angles(heading_error) for idx, heading_error in enumerate(heading_errors) if idx in idxs}
         # 计算recall、precision
         recall[m] = tps / (tps + fns)
         precision[m] = tps / (tps + fps)
@@ -752,7 +781,8 @@ def eval_class_zc(gt_annos,
         'precision': precision,
         'thresholds': thresh_holds,
         'merge_recall': merge_recall,
-        'merge_precision': merge_precision
+        'merge_precision': merge_precision,
+        'merge_heading_erros': merge_heading_errors
     }
 
     # clean temp variables
@@ -938,6 +968,8 @@ def do_eval_zc(gt_annos,
 
         result['merge_recall'] = ret['merge_recall'][2][1][2][2][2]  # score = 0.3
         result['merge_precision'] = ret['merge_precision'][2][1][2][2][2]
+
+        result['merge_heading_erros'] = ret['merge_heading_erros']
     
     return result
 
@@ -1025,7 +1057,7 @@ def add_distance(data, name_to_class, distance_v):
 def kitti_eval_zc(gt_annos,
                dt_annos,
                current_classes,
-               eval_types=['bev']):
+               eval_types=['bev'],out_dir=None):
     """KITTI style zc evaluation.
 
     Args:
@@ -1098,6 +1130,19 @@ def kitti_eval_zc(gt_annos,
         result_dict[f'{curcls_name}_bev_mAP40'] = result_eval['bev_mAP40'][j]
         result_dict[f'{curcls_name}_precision'] = result_eval['precision'][j]
         result_dict[f'{curcls_name}_recall'] = result_eval['recall'][j]
+
+        if class_to_name[j] in ('car', 'Pedestrian', 'Truck'):
+            result += f'class_to_name[j] head_error dis: {result_eval["merge_heading_erros"][j]} \n' 
+            import matplotlib.pyplot as plt
+            plt.figure()
+            plt.hist(result_eval["merge_heading_erros"][j])
+            plt.title(f'Heading Errors of {class_to_name[j]}')
+            plt.xlabel('error form 0 - 180 degree')
+            plt.ylabel('count')
+            out_dir = "/home/work/Documents/zc_heading/work_dirs/centerpoint_01voxel_second_secfpn_4x8_cyclic_20e_zc/eval/"
+            plt.savefig(os.path.join(out_dir,f'{class_to_name[j]}_heading_error_dis.png'))
+            plt.close()
+
     result += 'All Precision: {}, All Recall: {}\n'.format(result_dict['merge_precision'], result_dict['merge_recall'])
         
     return result,result_dict
